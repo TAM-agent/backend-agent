@@ -1,0 +1,21 @@
+# Core dependencies for intelligent irrigation agent
+google-cloud-aiplatform[adk,agent-engines]>=1.117.0
+google-genai>=1.9.0
+google-adk>=1.0.0
+pydantic>=2.10.6
+python-dotenv>=1.0.1
+requests>=2.31.0
+
+# Web framework for Cloud Run API
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Development and testing dependencies (optional)
+pytest~=8.4.2
+pytest-asyncio~=1.2.0
+google-adk[eval]>=1.0.0
+nest-asyncio>=1.6.0
+agent-starter-pack>=0.14.1
+
+# Deployment dependencies (optional)
+absl-py~=2.3.1

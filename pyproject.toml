@@ -1,0 +1,37 @@
+[project]
+name = "intelligent-irrigation-agent"
+version = "0.1.0"
+description = "Multi-agent irrigation system using Google Gemini ADK for proactive plant care"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "google-cloud-aiplatform[adk,agent-engines]>=1.117.0",
+    "google-genai>=1.9.0",
+    "google-adk>=1.0.0",
+    "pydantic>=2.10.6",
+    "python-dotenv>=1.0.1",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=8.4.2",
+    "pytest-asyncio~=1.2.0",
+    "google-adk[eval]>=1.0.0",
+    "nest-asyncio>=1.6.0",
+    "agent-starter-pack>=0.14.1",
+]
+deploy = [
+    "absl-py~=2.3.1",
+]
+
+[tool.uv]
+build-backend = "uv_build"
+package = true
+dev-dependencies = []
+
+[tool.uv.sources]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
