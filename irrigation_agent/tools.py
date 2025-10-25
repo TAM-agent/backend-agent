@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 USE_SIMULATION = os.getenv('USE_SIMULATION', 'false').lower() == 'true'
 
 if USE_SIMULATION:
-    from .firebase_service import simulator
+    from .servicio.firebase_service import simulator
     logger.info("Using Firestore simulation for sensor data")
 
 
@@ -1072,7 +1072,7 @@ def get_garden_weather(garden_id: str) -> Dict[str, Any]:
             }
 
         # Get weather data using Google Weather API
-        from irrigation_agent.weather_service import get_weather_for_garden
+        from irrigation_agent.servicio.weather_service import get_weather_for_garden
 
         weather_data = get_weather_for_garden(latitude, longitude)
 
@@ -1123,7 +1123,7 @@ def get_irrigation_recommendation_with_weather(garden_id: str, plant_id: str) ->
             }
 
         # Get weather-based recommendation
-        from irrigation_agent.weather_service import get_irrigation_recommendation
+        from irrigation_agent.servicio.weather_service import get_irrigation_recommendation
 
         recommendation = get_irrigation_recommendation(
             weather_data,
