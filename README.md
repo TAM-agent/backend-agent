@@ -1,11 +1,10 @@
-# Intelligent Irrigation Agent
+﻿# Intelligent Irrigation Agent
 
 Multi-agent irrigation system using Google's Gemini ADK for proactive plant care management. This system extends automated irrigation with AI agent capabilities for monitoring, optimization, and intelligent decision-making.
 
 ---
 
-## 📋 Table of Contents
-
+## Table of Contents
 - [Project Overview](#project-overview)
 - [Quick Start](#quick-start)
 - [Architecture](#architecture)
@@ -32,13 +31,13 @@ This backend agent component transforms a traditional MERN-based automated irrig
 
 ### What Makes This Different
 
-**Traditional System** ❌
+**Traditional System** âŒ
 ```python
 if soil_moisture < 30%:
     water_plant()
 ```
 
-**Intelligent Agent System** ✅
+**Intelligent Agent System** âœ…
 ```python
 Agent analyzes:
 - Current moisture trends (declining 15%/day)
@@ -52,11 +51,11 @@ adequate water. Saves 15L. Will verify moisture post-rain."
 
 ### Key Benefits
 
-- 🧠 **Proactive**: Predicts problems 12-48 hours before they occur
-- 💧 **Efficient**: 15-25% water savings through optimization
-- 📊 **Explainable**: Every decision includes reasoning
-- 🌤️ **Context-Aware**: Integrates weather, soil, plant knowledge
-- 🔔 **Smart Alerts**: Priority-based notifications with fatigue prevention
+- ðŸ§  **Proactive**: Predicts problems 12-48 hours before they occur
+- ðŸ’§ **Efficient**: 15-25% water savings through optimization
+- ðŸ“Š **Explainable**: Every decision includes reasoning
+- ðŸŒ¤ï¸ **Context-Aware**: Integrates weather, soil, plant knowledge
+- ðŸ”” **Smart Alerts**: Priority-based notifications with fatigue prevention
 
 ---
 
@@ -89,22 +88,22 @@ python -c "from irrigation_agent.tools import get_system_status; import json; pr
 SYSTEM STATUS REPORT
 ==================================================================
 
-⚡ Overall Health: WARNING
+âš¡ Overall Health: WARNING
 
-💧 Water Tank:
+ðŸ’§ Water Tank:
    Level: 28%
    Capacity: 100 liters
    Status: LOW
 
-🌿 Plant Health:
-   ✅ Tomato       - Moisture: 65% - Health: good
-   ⚠️  Basil        - Moisture: 38% - Health: fair
-   ✅ Lettuce      - Moisture: 72% - Health: good
-   ⚠️  Pepper       - Moisture: 42% - Health: fair
+ðŸŒ¿ Plant Health:
+   âœ… Tomato       - Moisture: 65% - Health: good
+   âš ï¸  Basil        - Moisture: 38% - Health: fair
+   âœ… Lettuce      - Moisture: 72% - Health: good
+   âš ï¸  Pepper       - Moisture: 42% - Health: fair
 
-ℹ️  WARNINGS:
-   • Water tank low (28%)
-   • Basil moisture approaching threshold (38%)
+â„¹ï¸  WARNINGS:
+   â€¢ Water tank low (28%)
+   â€¢ Basil moisture approaching threshold (38%)
 ```
 
 ---
@@ -115,27 +114,27 @@ SYSTEM STATUS REPORT
 
 ```
 intelligent_irrigation_agent (Root)
-├── irrigation_orchestrator (Coordinator)
-│   ├── sensor_monitor_agent       [Monitors IoT sensors]
-│   ├── nutrient_analyzer_agent    [Analyzes plant health]
-│   ├── alert_manager_agent        [Manages notifications]
-│   └── optimization_agent         [Optimizes schedules]
-└── automated_monitoring_workflow  [Sequential execution]
+â”œâ”€â”€ irrigation_orchestrator (Coordinator)
+â”‚   â”œâ”€â”€ sensor_monitor_agent       [Monitors IoT sensors]
+â”‚   â”œâ”€â”€ nutrient_analyzer_agent    [Analyzes plant health]
+â”‚   â”œâ”€â”€ alert_manager_agent        [Manages notifications]
+â”‚   â””â”€â”€ optimization_agent         [Optimizes schedules]
+â””â”€â”€ automated_monitoring_workflow  [Sequential execution]
 ```
 
 ### Data Flow
 
 ```
 IoT Sensors (Raspberry Pi)
-    ↓ REST API
-Sensor Monitor → Reads data, detects anomalies
-    ↓
-Nutrient Analyzer → Assesses health, diagnoses issues
-    ↓
-Optimization Agent → Integrates weather, calculates needs
-    ↓
-Alert Manager → Classifies priority, sends notifications
-    ↓
+    â†“ REST API
+Sensor Monitor â†’ Reads data, detects anomalies
+    â†“
+Nutrient Analyzer â†’ Assesses health, diagnoses issues
+    â†“
+Optimization Agent â†’ Integrates weather, calculates needs
+    â†“
+Alert Manager â†’ Classifies priority, sends notifications
+    â†“
 User / System Actions
 ```
 
@@ -322,7 +321,7 @@ from irrigation_agent.tools import get_weather_forecast
 
 weather = get_weather_forecast(days=3)
 for forecast in weather['forecast'][:3]:
-    print(f"{forecast['date']}: {forecast['temp_celsius']}°C, {forecast['description']}")
+    print(f"{forecast['date']}: {forecast['temp_celsius']}Â°C, {forecast['description']}")
 ```
 
 ### Using the Agents
@@ -385,7 +384,7 @@ make help             # Show all commands
 
 ### The Four Specialized Agents
 
-#### 1. Sensor Monitor Agent 🔍
+#### 1. Sensor Monitor Agent ðŸ”
 
 **Model**: `gemini-2.5-flash` (fast operations)
 
@@ -408,7 +407,7 @@ within normal variance (<5%). Water tank at 45% declining at
 expected rate of 8L/day. No anomalies detected.
 ```
 
-#### 2. Nutrient Analyzer Agent 🌿
+#### 2. Nutrient Analyzer Agent ðŸŒ¿
 
 **Model**: `gemini-2.5-pro` (complex analysis)
 
@@ -419,12 +418,12 @@ expected rate of 8L/day. No anomalies detected.
 - Growth pattern analysis
 
 **Knowledge Base:**
-- **Nitrogen**: Yellowing older leaves → Fish emulsion (5-1-1)
-- **Phosphorus**: Dark/purple leaves → Bone meal
-- **Potassium**: Brown leaf edges → Potash
-- **Calcium**: Blossom end rot → Lime/gypsum
-- **Magnesium**: Interveinal chlorosis → Epsom salt
-- **Iron**: Yellowing new leaves → Iron chelate
+- **Nitrogen**: Yellowing older leaves â†’ Fish emulsion (5-1-1)
+- **Phosphorus**: Dark/purple leaves â†’ Bone meal
+- **Potassium**: Brown leaf edges â†’ Potash
+- **Calcium**: Blossom end rot â†’ Lime/gypsum
+- **Magnesium**: Interveinal chlorosis â†’ Epsom salt
+- **Iron**: Yellowing new leaves â†’ Iron chelate
 
 **Example Output:**
 ```
@@ -435,7 +434,7 @@ Basil showing early nitrogen deficiency:
 - Expected outcome: Recovery in 10-14 days, darker green new growth
 ```
 
-#### 3. Alert Manager Agent 📢
+#### 3. Alert Manager Agent ðŸ“¢
 
 **Model**: `gemini-2.5-flash` (fast decisions)
 
@@ -449,12 +448,12 @@ Basil showing early nitrogen deficiency:
 
 | Priority | When | Channels | Cooldown | Example |
 |----------|------|----------|----------|---------|
-| 🚨 CRITICAL | Plant death risk, system failure | All | None | "Water tank at 3% - irrigation will fail in 2 hours" |
-| ⚠️ HIGH | Urgent attention needed | Telegram + Email | 2 hours | "Lettuce moisture at 18% - irrigation needed within 6h" |
-| ℹ️ MEDIUM | Important but not urgent | Telegram | 6 hours | "Tomato showing nitrogen deficiency - fertilizer recommended" |
-| 💡 LOW | Informational | Daily digest | 24 hours | "All plants healthy! Basil grew 15% this week" |
+| ðŸš¨ CRITICAL | Plant death risk, system failure | All | None | "Water tank at 3% - irrigation will fail in 2 hours" |
+| âš ï¸ HIGH | Urgent attention needed | Telegram + Email | 2 hours | "Lettuce moisture at 18% - irrigation needed within 6h" |
+| â„¹ï¸ MEDIUM | Important but not urgent | Telegram | 6 hours | "Tomato showing nitrogen deficiency - fertilizer recommended" |
+| ðŸ’¡ LOW | Informational | Daily digest | 24 hours | "All plants healthy! Basil grew 15% this week" |
 
-#### 4. Optimization Agent 📊
+#### 4. Optimization Agent ðŸ“Š
 
 **Model**: `gemini-2.5-pro` (complex optimization)
 
@@ -800,7 +799,7 @@ gcloud run deploy intelligent-irrigation-agent \
 
 #### Deployment Methods
 
-**Method 1: Using Cloud Build (Automated CI/CD)** ⭐ Recommended
+**Method 1: Using Cloud Build (Automated CI/CD)** â­ Recommended
 
 This method uses the included `cloudbuild.yaml` for automated deployment.
 
@@ -1174,22 +1173,22 @@ make delete           # Delete Cloud Run service
 
 ```
 backend-agent/
-├── irrigation_agent/           # Main package
-│   ├── __init__.py            # Package exports
-│   ├── agent.py               # Agent orchestration
-│   ├── config.py              # Configuration management
-│   ├── tools.py               # Tool implementations
-│   └── sub_agents/            # Specialized agents
-│       ├── __init__.py
-│       ├── sensor_monitor.py
-│       ├── nutrient_analyzer.py
-│       ├── alert_manager.py
-│       └── optimization_agent.py
-├── .env-template              # Configuration template
-├── requirements.txt           # Dependencies
-├── Makefile                   # Development commands
-├── pyproject.toml            # Project metadata
-└── README.md                 # This file
+â”œâ”€â”€ irrigation_agent/           # Main package
+â”‚   â”œâ”€â”€ __init__.py            # Package exports
+â”‚   â”œâ”€â”€ agent.py               # Agent orchestration
+â”‚   â”œâ”€â”€ config.py              # Configuration management
+â”‚   â”œâ”€â”€ tools.py               # Tool implementations
+â”‚   â””â”€â”€ sub_agents/            # Specialized agents
+â”‚       â”œâ”€â”€ __init__.py
+â”‚       â”œâ”€â”€ sensor_monitor.py
+â”‚       â”œâ”€â”€ nutrient_analyzer.py
+â”‚       â”œâ”€â”€ alert_manager.py
+â”‚       â””â”€â”€ optimization_agent.py
+â”œâ”€â”€ .env-template              # Configuration template
+â”œâ”€â”€ requirements.txt           # Dependencies
+â”œâ”€â”€ Makefile                   # Development commands
+â”œâ”€â”€ pyproject.toml            # Project metadata
+â””â”€â”€ README.md                 # This file
 ```
 
 ### Adding a New Tool
@@ -1400,4 +1399,48 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 ---
 
-**Built with ❤️ for smarter plant care through AI** 🌱🤖
+**Built with â¤ï¸ for smarter plant care through AI** ðŸŒ±ðŸ¤–
+
+
+## Agriculture Data (USDA Quick Stats)
+
+This service integrates USDA Quick Stats API to enrich crop context (yield, area planted, general series) for better irrigation decisions.
+
+- API: https://quickstats.nass.usda.gov/api
+- Configure key: set `USDA_QUICKSTATS_API_KEY` in `.env`
+- Endpoints added:
+  - `GET /api/agriculture/yield?commodity=CORN&year=2023&state=IA`
+  - `GET /api/agriculture/area_planted?commodity=CORN&year=2023&state=IA`
+  - `GET /api/agriculture/search?commodity=WHEAT&year=2022&statistic=YIELD`
+
+Notes:
+- These endpoints pass through commonly used Quick Stats filters (commodity_desc, statisticcat_desc, etc.).
+- If the API key is missing, the endpoints return HTTP 400 with an explanatory message.
+
+- Advisor endpoint:
+  - `POST /api/gardens/{garden_id}/advisor`
+    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
+    - Combina contexto del jardín con Quick Stats y devuelve una recomendación JSON a nivel de jardín.
+
+- Advisor endpoint:
+  - `POST /api/gardens/{garden_id}/advisor`
+    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
+    - Combina contexto del jardín con Quick Stats y clima (si disponible) y devuelve una recomendación JSON a nivel de jardín.
+
+## Audio (Speech-To-Text / Text-To-Speech)
+
+We integrated ElevenLabs for audio features, inspired by the `fabian` branch example.
+
+- TTS endpoint: `POST /api/audio/tts`
+  - Body: `{ "text": "Hola jardín", "voice_id": "JBFqnCBsd6RMkjVDRZzb", "model_id": "eleven_multilingual_v2", "output_format": "mp3_44100_128" }`
+  - Returns: JSON with `audio_base64` (MP3 by default)
+- STT endpoint: `POST /api/audio/stt`
+  - Multipart file upload: field `file`
+  - Returns: JSON with `text` (best-effort wrapper)
+
+Configure:
+- Set `ELEVENLABS_API_KEY` in `.env`
+- Install deps from `requirements.txt` (includes `elevenlabs` and `python-multipart`)
+
+Notes:
+- STT endpoint relies on ElevenLabs STT HTTP API and may require adjustments depending on account features.

@@ -21,3 +21,7 @@ agent-starter-pack>=0.14.1
 
 # Deployment dependencies (optional)
 absl-py~=2.3.1
+
+# Audio (TTS/STT)
+elevenlabs>=1.2.0
+python-multipart>=0.0.9

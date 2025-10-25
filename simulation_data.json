@@ -2,22 +2,58 @@
   "plants": {
     "tomato": {
       "name": "tomato",
-      "current_moisture": 65,
+      "current_moisture": 67,
       "health_score": 3,
       "last_irrigation": "2025-10-24T08:00:00",
       "history": [
-        {"moisture": 65, "timestamp": "2025-10-25T11:00:00"},
-        {"moisture": 63, "timestamp": "2025-10-25T10:00:00"},
-        {"moisture": 61, "timestamp": "2025-10-25T09:00:00"},
-        {"moisture": 60, "timestamp": "2025-10-25T08:00:00"},
-        {"moisture": 58, "timestamp": "2025-10-25T07:00:00"},
-        {"moisture": 70, "timestamp": "2025-10-25T06:00:00"},
-        {"moisture": 68, "timestamp": "2025-10-25T05:00:00"},
-        {"moisture": 66, "timestamp": "2025-10-25T04:00:00"},
-        {"moisture": 64, "timestamp": "2025-10-25T03:00:00"},
-        {"moisture": 62, "timestamp": "2025-10-25T02:00:00"},
-        {"moisture": 60, "timestamp": "2025-10-25T01:00:00"},
-        {"moisture": 58, "timestamp": "2025-10-25T00:00:00"}
+        {
+          "moisture": 65,
+          "timestamp": "2025-10-25T11:00:00"
+        },
+        {
+          "moisture": 63,
+          "timestamp": "2025-10-25T10:00:00"
+        },
+        {
+          "moisture": 61,
+          "timestamp": "2025-10-25T09:00:00"
+        },
+        {
+          "moisture": 60,
+          "timestamp": "2025-10-25T08:00:00"
+        },
+        {
+          "moisture": 58,
+          "timestamp": "2025-10-25T07:00:00"
+        },
+        {
+          "moisture": 70,
+          "timestamp": "2025-10-25T06:00:00"
+        },
+        {
+          "moisture": 68,
+          "timestamp": "2025-10-25T05:00:00"
+        },
+        {
+          "moisture": 66,
+          "timestamp": "2025-10-25T04:00:00"
+        },
+        {
+          "moisture": 64,
+          "timestamp": "2025-10-25T03:00:00"
+        },
+        {
+          "moisture": 62,
+          "timestamp": "2025-10-25T02:00:00"
+        },
+        {
+          "moisture": 60,
+          "timestamp": "2025-10-25T01:00:00"
+        },
+        {
+          "moisture": 58,
+          "timestamp": "2025-10-25T00:00:00"
+        }
       ]
     },
     "basil": {
@@ -26,18 +62,54 @@
       "health_score": 2,
       "last_irrigation": "2025-10-23T15:00:00",
       "history": [
-        {"moisture": 38, "timestamp": "2025-10-25T11:00:00"},
-        {"moisture": 40, "timestamp": "2025-10-25T10:00:00"},
-        {"moisture": 42, "timestamp": "2025-10-25T09:00:00"},
-        {"moisture": 44, "timestamp": "2025-10-25T08:00:00"},
-        {"moisture": 46, "timestamp": "2025-10-25T07:00:00"},
-        {"moisture": 48, "timestamp": "2025-10-25T06:00:00"},
-        {"moisture": 50, "timestamp": "2025-10-25T05:00:00"},
-        {"moisture": 52, "timestamp": "2025-10-25T04:00:00"},
-        {"moisture": 54, "timestamp": "2025-10-25T03:00:00"},
-        {"moisture": 56, "timestamp": "2025-10-25T02:00:00"},
-        {"moisture": 58, "timestamp": "2025-10-25T01:00:00"},
-        {"moisture": 60, "timestamp": "2025-10-25T00:00:00"}
+        {
+          "moisture": 38,
+          "timestamp": "2025-10-25T11:00:00"
+        },
+        {
+          "moisture": 40,
+          "timestamp": "2025-10-25T10:00:00"
+        },
+        {
+          "moisture": 42,
+          "timestamp": "2025-10-25T09:00:00"
+        },
+        {
+          "moisture": 44,
+          "timestamp": "2025-10-25T08:00:00"
+        },
+        {
+          "moisture": 46,
+          "timestamp": "2025-10-25T07:00:00"
+        },
+        {
+          "moisture": 48,
+          "timestamp": "2025-10-25T06:00:00"
+        },
+        {
+          "moisture": 50,
+          "timestamp": "2025-10-25T05:00:00"
+        },
+        {
+          "moisture": 52,
+          "timestamp": "2025-10-25T04:00:00"
+        },
+        {
+          "moisture": 54,
+          "timestamp": "2025-10-25T03:00:00"
+        },
+        {
+          "moisture": 56,
+          "timestamp": "2025-10-25T02:00:00"
+        },
+        {
+          "moisture": 58,
+          "timestamp": "2025-10-25T01:00:00"
+        },
+        {
+          "moisture": 60,
+          "timestamp": "2025-10-25T00:00:00"
+        }
       ]
     },
     "lettuce": {
@@ -46,18 +118,54 @@
       "health_score": 4,
       "last_irrigation": "2025-10-24T18:00:00",
       "history": [
-        {"moisture": 72, "timestamp": "2025-10-25T11:00:00"},
-        {"moisture": 71, "timestamp": "2025-10-25T10:00:00"},
-        {"moisture": 70, "timestamp": "2025-10-25T09:00:00"},
-        {"moisture": 69, "timestamp": "2025-10-25T08:00:00"},
-        {"moisture": 75, "timestamp": "2025-10-25T07:00:00"},
-        {"moisture": 74, "timestamp": "2025-10-25T06:00:00"},
-        {"moisture": 73, "timestamp": "2025-10-25T05:00:00"},
-        {"moisture": 72, "timestamp": "2025-10-25T04:00:00"},
-        {"moisture": 71, "timestamp": "2025-10-25T03:00:00"},
-        {"moisture": 70, "timestamp": "2025-10-25T02:00:00"},
-        {"moisture": 69, "timestamp": "2025-10-25T01:00:00"},
-        {"moisture": 68, "timestamp": "2025-10-25T00:00:00"}
+        {
+          "moisture": 72,
+          "timestamp": "2025-10-25T11:00:00"
+        },
+        {
+          "moisture": 71,
+          "timestamp": "2025-10-25T10:00:00"
+        },
+        {
+          "moisture": 70,
+          "timestamp": "2025-10-25T09:00:00"
+        },
+        {
+          "moisture": 69,
+          "timestamp": "2025-10-25T08:00:00"
+        },
+        {
+          "moisture": 75,
+          "timestamp": "2025-10-25T07:00:00"
+        },
+        {
+          "moisture": 74,
+          "timestamp": "2025-10-25T06:00:00"
+        },
+        {
+          "moisture": 73,
+          "timestamp": "2025-10-25T05:00:00"
+        },
+        {
+          "moisture": 72,
+          "timestamp": "2025-10-25T04:00:00"
+        },
+        {
+          "moisture": 71,
+          "timestamp": "2025-10-25T03:00:00"
+        },
+        {
+          "moisture": 70,
+          "timestamp": "2025-10-25T02:00:00"
+        },
+        {
+          "moisture": 69,
+          "timestamp": "2025-10-25T01:00:00"
+        },
+        {
+          "moisture": 68,
+          "timestamp": "2025-10-25T00:00:00"
+        }
       ]
     },
     "pepper": {
@@ -66,18 +174,54 @@
       "health_score": 3,
       "last_irrigation": "2025-10-24T12:00:00",
       "history": [
-        {"moisture": 42, "timestamp": "2025-10-25T11:00:00"},
-        {"moisture": 44, "timestamp": "2025-10-25T10:00:00"},
-        {"moisture": 46, "timestamp": "2025-10-25T09:00:00"},
-        {"moisture": 48, "timestamp": "2025-10-25T08:00:00"},
-        {"moisture": 50, "timestamp": "2025-10-25T07:00:00"},
-        {"moisture": 52, "timestamp": "2025-10-25T06:00:00"},
-        {"moisture": 54, "timestamp": "2025-10-25T05:00:00"},
-        {"moisture": 56, "timestamp": "2025-10-25T04:00:00"},
-        {"moisture": 58, "timestamp": "2025-10-25T03:00:00"},
-        {"moisture": 60, "timestamp": "2025-10-25T02:00:00"},
-        {"moisture": 62, "timestamp": "2025-10-25T01:00:00"},
-        {"moisture": 64, "timestamp": "2025-10-25T00:00:00"}
+        {
+          "moisture": 42,
+          "timestamp": "2025-10-25T11:00:00"
+        },
+        {
+          "moisture": 44,
+          "timestamp": "2025-10-25T10:00:00"
+        },
+        {
+          "moisture": 46,
+          "timestamp": "2025-10-25T09:00:00"
+        },
+        {
+          "moisture": 48,
+          "timestamp": "2025-10-25T08:00:00"
+        },
+        {
+          "moisture": 50,
+          "timestamp": "2025-10-25T07:00:00"
+        },
+        {
+          "moisture": 52,
+          "timestamp": "2025-10-25T06:00:00"
+        },
+        {
+          "moisture": 54,
+          "timestamp": "2025-10-25T05:00:00"
+        },
+        {
+          "moisture": 56,
+          "timestamp": "2025-10-25T04:00:00"
+        },
+        {
+          "moisture": 58,
+          "timestamp": "2025-10-25T03:00:00"
+        },
+        {
+          "moisture": 60,
+          "timestamp": "2025-10-25T02:00:00"
+        },
+        {
+          "moisture": 62,
+          "timestamp": "2025-10-25T01:00:00"
+        },
+        {
+          "moisture": 64,
+          "timestamp": "2025-10-25T00:00:00"
+        }
       ]
     }
   },

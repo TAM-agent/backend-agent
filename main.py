@@ -6,7 +6,11 @@ import re
 from datetime import datetime
 from typing import Optional, Set
 
+<<<<<<< HEAD
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File
+=======
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
+>>>>>>> main
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -26,11 +30,19 @@ app = FastAPI(
     version="0.1.0"
 )
 
-# Configure CORS
+# Configure CORS (parametrized by env)
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
+if allowed_origins_env:
+    allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
+else:
+    allowed_origins = ["*"]
+
+allow_credentials = os.getenv("ALLOW_CREDENTIALS", "false").lower() == "true"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=allowed_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -70,6 +82,27 @@ class NotificationRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[list] = None
+
+
+class CropQuery(BaseModel):
+    commodity: str
+    year: int
+    state: Optional[str] = None
+
+
+class AdvisorRequest(BaseModel):
+    """Request body for garden-level advisor using USDA context."""
+    commodity: str
+    state: Optional[str] = None
+    year: Optional[int] = None
+    user_message: Optional[str] = None
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    output_format: Optional[str] = None
 
 
 # WebSocket connection manager
@@ -132,9 +165,9 @@ async def agent_analyze_and_act(condition: str, data: dict) -> dict:
         }
 
     try:
-        from google import genai
+        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
 
-        client = genai.Client(vertexai=True)
+        client = get_genai_client()
 
         # Extract garden personality from data
         personality = data.get("personality", "professional")
@@ -185,45 +218,28 @@ Responde en formato JSON con esta estructura:
         )
 
         # Extract response text
-        response_text = ""
-        if hasattr(response, 'text'):
-            response_text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            for candidate in response.candidates:
-                if hasattr(candidate, 'content') and candidate.content:
-                    if hasattr(candidate.content, 'parts'):
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'text'):
-                                response_text += part.text
+        response_text = extract_text(response)
 
         # Try to parse JSON from response
-        import json
-        import re
-
-        # Extract JSON from markdown code blocks if present
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-        if json_match:
-            response_text = json_match.group(1)
-
-        try:
-            decision = json.loads(response_text.strip())
-        except json.JSONDecodeError:
-            # If JSON parsing fails, return basic structure
+        decision_obj, raw_text = extract_json_object(response_text)
+        if decision_obj is None:
             decision = {
                 "decision": "alerta",
-                "explanation": response_text.strip(),
+                "explanation": raw_text,
                 "priority": "medium"
             }
+        else:
+            decision = decision_obj
 
         # Execute actions based on decision
         actions_taken = []
-        if decision.get("decision") == "regar" and decision.get("plant"):
+        if decision.get("decision") == "regar" and decision.get("plant_id"):
             try:
                 duration = decision.get("action_params", {}).get("duration", 30)
-                result = trigger_irrigation(decision["plant"], duration)
+                result = trigger_irrigation(decision["plant_id"], duration)
                 actions_taken.append({
                     "type": "irrigation",
-                    "plant": decision["plant"],
+                    "plant": decision["plant_id"],
                     "duration": duration,
                     "result": result
                 })
@@ -415,6 +431,8 @@ async def api_system_status():
 @app.get("/api/plant/{plant_name}/moisture")
 async def api_soil_moisture(plant_name: str):
     """Get soil moisture for specific plant."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Irrigation tools not available")
     try:
         moisture = check_soil_moisture(plant_name)
         return moisture
@@ -429,6 +447,8 @@ async def api_sensor_history(
     hours: int = Query(default=24, ge=1, le=168)
 ):
     """Get historical sensor data for plant."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Irrigation tools not available")
     try:
         history = get_sensor_history(plant_name, hours)
         return history
@@ -440,6 +460,8 @@ async def api_sensor_history(
 @app.get("/api/plant/{plant_name}/health")
 async def api_plant_health(plant_name: str):
     """Get plant health assessment."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Irrigation tools not available")
     try:
         health = analyze_plant_health(plant_name)
         return health
@@ -451,6 +473,8 @@ async def api_plant_health(plant_name: str):
 @app.get("/api/tank")
 async def api_tank_level():
     """Get water tank level."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Irrigation tools not available")
     try:
         tank = check_water_tank_level()
         return tank
@@ -462,6 +486,8 @@ async def api_tank_level():
 @app.get("/api/weather")
 async def api_weather(days: int = Query(default=3, ge=1, le=7)):
     """Get weather forecast."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Irrigation tools not available")
     try:
         weather = get_weather_forecast(days)
         return weather
@@ -681,115 +707,8 @@ async def api_get_plant_in_garden(garden_id: str, plant_id: str):
 
 @app.post("/api/gardens/{garden_id}/plants/{plant_id}/chat")
 async def api_chat_with_plant(garden_id: str, plant_id: str, request: ChatRequest):
-    """Chat with the agent focused on a specific plant in a garden."""
-    if not TOOLS_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Agent tools not available")
-
-    try:
-        from google import genai
-        from irrigation_agent.tools import get_plant_in_garden, get_garden_status
-
-        client = genai.Client(vertexai=True)
-
-        # Get plant and garden context
-        plant_data = get_plant_in_garden(garden_id, plant_id)
-        garden_data = get_garden_status(garden_id)
-
-        if plant_data.get("status") == "error" or garden_data.get("status") == "error":
-            raise HTTPException(status_code=404, detail="Plant or garden not found")
-
-        garden_name = garden_data.get("garden_name")
-        personality = garden_data.get("personality", "professional")
-
-        # Build personality-based prompt
-        personality_styles = {
-            "friendly": "Usa un tono amigable, carinoso y cercano. Habla como un amigo que cuida sus plantas con amor.",
-            "professional": "Usa un tono profesional, tecnico y preciso. Proporciona datos y recomendaciones basadas en mejores practicas.",
-            "playful": "Usa un tono divertido, creativo y alegre. Haz que el cuidado de plantas sea entretenido.",
-            "caring": "Usa un tono compasivo y maternal. Muestra preocupacion genuina por el bienestar de las plantas.",
-            "neutral": "Usa un tono informativo y objetivo. Proporciona hechos sin agregar emociones."
-        }
-        style_instruction = personality_styles.get(personality, personality_styles["neutral"])
-
-        context_prompt = f"""Eres GrowthAI, asistente de irrigacion para el jardin '{garden_name}'.
-
-PERSONALIDAD DEL JARDIN: {personality}
-ESTILO DE COMUNICACION: {style_instruction}
-
-CONTEXTO DE LA PLANTA:
-- ID: {plant_id}
-- Nombre: {plant_data.get('plant_name')}
-- Humedad actual: {plant_data.get('current_moisture')}%
-- Salud: {plant_data.get('health')}
-- Ultima irrigacion: {plant_data.get('last_irrigation')}
-
-PREGUNTA DEL USUARIO:
-{request.message}
-
-Responde en formato JSON:
-{{
-    "message": "Tu respuesta en tono {personality}",
-    "plants_mentioned": ["{plant_id}"],
-    "data": {{"moisture": {plant_data.get('current_moisture')}, "health": "{plant_data.get('health')}"}},
-    "suggestions": ["sugerencia1", "sugerencia2"],
-    "priority": "info|warning|alert"
-}}"""
-
-        response = client.models.generate_content(
-            model=config.worker_model,
-            contents=context_prompt
-        )
-
-        # Extract and parse response
-        response_text = ""
-        if hasattr(response, 'text'):
-            response_text = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            for candidate in response.candidates:
-                if hasattr(candidate, 'content') and candidate.content:
-                    if hasattr(candidate.content, 'parts'):
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'text'):
-                                response_text += part.text
-
-        # Parse JSON
-        import json
-        import re
-        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-        if json_match:
-            response_text = json_match.group(1)
-
-        try:
-            response_data = json.loads(response_text.strip())
-            return {
-                "response": response_data.get("message", response_text),
-                "plants_mentioned": response_data.get("plants_mentioned", [plant_id]),
-                "data": response_data.get("data", {}),
-                "suggestions": response_data.get("suggestions", []),
-                "priority": response_data.get("priority", "info"),
-                "garden_id": garden_id,
-                "garden_name": garden_name,
-                "personality": personality,
-                "timestamp": datetime.now().isoformat()
-            }
-        except json.JSONDecodeError:
-            return {
-                "response": response_text.strip(),
-                "plants_mentioned": [plant_id],
-                "data": {},
-                "suggestions": [],
-                "priority": "info",
-                "garden_id": garden_id,
-                "garden_name": garden_name,
-                "personality": personality,
-                "timestamp": datetime.now().isoformat()
-            }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error in plant chat: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    """Deprecated: garden has one sensor; chat is garden-scoped."""
+    raise HTTPException(status_code=410, detail="El chat por planta ya no esta disponible. Usa POST /api/gardens/{garden_id}/chat")
 
 
 @app.get("/api/gardens/{garden_id}/weather")
@@ -834,13 +753,98 @@ async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+<<<<<<< HEAD
 @app.post("/api/chat")
 async def api_chat(request: Optional[ChatRequest] = None, audio: UploadFile | None = File(default=None)):
     """Chat with the intelligent irrigation agent. Accepts text (ChatRequest) or an audio file to transcribe."""
+=======
+# ============================================================================
+# AGRICULTURE DATA (USDA Quick Stats)
+# ============================================================================
+
+
+@app.get("/api/agriculture/yield")
+async def api_agri_yield(
+    commodity: str = Query(..., description="Commodity, e.g., CORN, WHEAT"),
+    year: int = Query(..., ge=1900, le=2100),
+    state: Optional[str] = Query(None, description="State alpha code, e.g., IA"),
+):
+    """Get crop yield statistics from USDA Quick Stats."""
+    try:
+        from irrigation_agent.agriculture_service import get_crop_yield
+        result = get_crop_yield(commodity, year, state)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting crop yield: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agriculture/area_planted")
+async def api_agri_area_planted(
+    commodity: str = Query(..., description="Commodity, e.g., CORN, WHEAT"),
+    year: int = Query(..., ge=1900, le=2100),
+    state: Optional[str] = Query(None, description="State alpha code, e.g., IA"),
+):
+    """Get area planted statistics from USDA Quick Stats."""
+    try:
+        from irrigation_agent.agriculture_service import get_area_planted
+        result = get_area_planted(commodity, year, state)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting area planted: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agriculture/search")
+async def api_agri_search(
+    commodity: Optional[str] = Query(None),
+    year: Optional[int] = Query(None),
+    state: Optional[str] = Query(None),
+    statistic: Optional[str] = Query(None, description="statisticcat_desc, e.g., YIELD, AREA PLANTED"),
+    unit: Optional[str] = Query(None, description="unit_desc"),
+    desc: Optional[str] = Query(None, description="short_desc"),
+):
+    """Generic USDA Quick Stats search with common filters."""
+    try:
+        from irrigation_agent.agriculture_service import search_quickstats
+        result = search_quickstats(
+            commodity_desc=commodity,
+            year=year,
+            state_alpha=state,
+            statisticcat_desc=statistic,
+            unit_desc=unit,
+            short_desc=desc,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Quick Stats search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/gardens/{garden_id}/advisor")
+async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
+    """Agent advisor for a garden combining local context with USDA Quick Stats.
+
+    Returns a JSON-structured recommendation at garden level (no per-plant chat).
+    """
+>>>>>>> main
     if not TOOLS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
+<<<<<<< HEAD
     
         prompt_text = None
 
@@ -885,11 +889,271 @@ async def api_chat(request: Optional[ChatRequest] = None, audio: UploadFile | No
             "status": "success",
             "used_transcription": audio is not None
         }
+=======
+        from irrigation_agent.tools import get_garden_status, get_garden_weather
+        from irrigation_agent.agriculture_service import get_crop_yield, get_area_planted
+        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+
+        client = get_genai_client()
+
+        # Garden context
+        garden_data = get_garden_status(garden_id)
+        if garden_data.get("status") != "success":
+            raise HTTPException(status_code=404, detail=garden_data.get("error", "Garden not found"))
+
+        # USDA context (optional fields)
+        year = req.year or datetime.now().year
+        usda_yield = get_crop_yield(req.commodity, year, req.state)
+        usda_area = get_area_planted(req.commodity, year, req.state)
+
+        # Weather context for the garden (optional if API not configured)
+        weather = get_garden_weather(garden_id)
+
+        personality = garden_data.get("personality", "neutral")
+        garden_name = garden_data.get("garden_name", garden_id)
+
+        context_prompt = f"""Eres GrowthAI, asesor inteligente de riego para el jardin '{garden_name}'.
+
+PERSONALIDAD: {personality}
+
+ESTADO DEL JARDIN (incluye plantas):
+{garden_data}
+
+ESTADISTICAS AGRICOLAS (USDA Quick Stats):
+- Commodity: {req.commodity}  Year: {year}  State: {req.state or '-'}
+- YIELD: {usda_yield}
+- AREA PLANTED: {usda_area}
+
+CLIMA (si disponible):
+{weather}
+
+MENSAJE DEL USUARIO (opcional):
+{req.user_message or ''}
+
+IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
+{{
+  "message": "Recomendacion en texto natural",
+  "irrigation_action": "irrigate_now|irrigate_soon|monitor|skip",
+  "params": {{"duration": 0}},
+  "considered": {{
+     "usda": {{"commodity": "{req.commodity}", "year": {year}, "state": "{req.state or ''}"}},
+     "garden": {{"plants": "resumen"}},
+     "weather": {{"available": {str(weather.get('status') == 'success').lower()} }}
+  }},
+  "priority": "info|warning|alert"
+}}
+
+Reglas:
+- No converses con plantas individuales. Habla a nivel de jardin.
+- Explica brevemente como las estadisticas USDA y el clima influyen en la recomendacion (tendencias macro, etapa del cultivo, lluvia/temperatura). 
+- Responde en español.
+"""
+
+        response = client.models.generate_content(
+            model=config.worker_model,
+            contents=context_prompt
+        )
+
+        response_text = extract_text(response)
+        try:
+            data, raw = extract_json_object(response_text)
+            if data is None:
+                raise json.JSONDecodeError("not json", raw, 0)
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "advisor": data,
+                "timestamp": datetime.now().isoformat()
+            }
+        except json.JSONDecodeError:
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "advisor": {
+                    "message": response_text.strip(),
+                    "irrigation_action": "monitor",
+                    "params": {},
+                    "considered": {
+                        "usda": {"commodity": req.commodity, "year": year, "state": req.state or ''}
+                    },
+                    "priority": "info"
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+>>>>>>> main
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in chat: {e}")
+        logger.error(f"Error in garden advisor: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# AUDIO: TTS/STT
+# ============================================================================
+
+
+@app.post("/api/audio/tts")
+async def api_audio_tts(req: TTSRequest):
+    """Text-to-Speech using ElevenLabs. Returns base64 audio data."""
+    try:
+        # Prefer SDK service from fabian branch if available
+        try:
+            from irrigation_agent.tts_service import convert_text_to_speech
+            audio_b64 = convert_text_to_speech(
+                req.text,
+                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                model_id=req.model_id or "eleven_multilingual_v2",
+                output_format=req.output_format or "mp3_44100_128",
+            )
+            if not audio_b64:
+                raise ValueError("TTS conversion failed")
+            return {
+                "status": "success",
+                "audio_base64": audio_b64,
+                "voice_id": req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                "model_id": req.model_id or "eleven_multilingual_v2",
+                "format": req.output_format or "mp3_44100_128",
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception:
+            from irrigation_agent.audio_service import tts_elevenlabs
+            result = tts_elevenlabs(
+                text=req.text,
+                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                model_id=req.model_id or "eleven_multilingual_v2",
+                output_format=req.output_format or "mp3_44100_128",
+            )
+            if result.get("status") == "error":
+                raise HTTPException(status_code=400, detail=result.get("error"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in TTS: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/audio/stt")
+async def api_audio_stt(file: UploadFile = File(...)):
+    """Speech-to-Text using ElevenLabs STT (best-effort)."""
+    try:
+        file_bytes = await file.read()
+        # Prefer SDK service if available
+        try:
+            from irrigation_agent.stt_service import convert_audio_to_text
+            text = convert_audio_to_text(file_bytes)
+            if not text:
+                raise ValueError("STT failed")
+            return {
+                "status": "success",
+                "text": text,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception:
+            from irrigation_agent.audio_service import stt_elevenlabs
+            result = stt_elevenlabs(file_bytes)
+            if result.get("status") == "error":
+                raise HTTPException(status_code=400, detail=result.get("error"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in STT: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/gardens/{garden_id}/chat")
+async def api_garden_chat(garden_id: str, request: ChatRequest):
+    """Chat del asistente a nivel de jardin (incluye info de plantas como contexto)."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+        from irrigation_agent.tools import get_garden_status
+
+        client = get_genai_client()
+
+        garden_data = get_garden_status(garden_id)
+        if garden_data.get("status") != "success":
+            raise HTTPException(status_code=404, detail=garden_data.get("error", "Garden not found"))
+
+        personality = garden_data.get("personality", "neutral")
+        garden_name = garden_data.get("garden_name", garden_id)
+
+        context_prompt = f"""Eres GrowthAI, asistente de riego para el jardin '{garden_name}'.
+
+PERSONALIDAD: {personality}
+
+ESTADO DEL JARDIN (incluye plantas):
+{garden_data}
+
+MENSAJE DEL USUARIO:
+{request.message}
+
+IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
+{{
+    "message": "Respuesta en texto natural",
+    "plants_summary": [
+        {{"plant_id": "id", "name": "nombre", "moisture": 0, "health": "good|fair|poor"}}
+    ],
+    "data": {{"clave": "valor"}},
+    "suggestions": ["sugerencia1", "sugerencia2"],
+    "priority": "info|warning|alert"
+}}
+
+Reglas:
+- No converses con plantas individuales. Habla a nivel de jardin.
+- Usa los datos de plantas solo como resumen/informacion.
+- Responde en español.
+"""
+
+        response = client.models.generate_content(
+            model=config.worker_model,
+            contents=context_prompt
+        )
+
+        # Extract and parse response
+        response_text = extract_text(response)
+
+        try:
+            response_data, raw_text = extract_json_object(response_text)
+            if response_data is None:
+                raise json.JSONDecodeError("not json", raw_text, 0)
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "message": response_data.get("message", response_text),
+                "plants_summary": response_data.get("plants_summary", []),
+                "data": response_data.get("data", {}),
+                "suggestions": response_data.get("suggestions", []),
+                "priority": response_data.get("priority", "info"),
+                "timestamp": datetime.now().isoformat()
+            }
+        except json.JSONDecodeError:
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "message": response_text.strip(),
+                "plants_summary": [],
+                "data": {},
+                "suggestions": [],
+                "priority": "info",
+                "timestamp": datetime.now().isoformat()
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in garden chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat")
+async def api_chat(request: ChatRequest):
+    """Deprecated: use garden-scoped chat endpoint."""
+    raise HTTPException(status_code=400, detail="El chat es por jardin. Usa POST /api/gardens/{garden_id}/chat")
 
 
 @app.websocket("/ws")
@@ -927,8 +1191,9 @@ async def websocket_endpoint(websocket: WebSocket):
             message_type = data.get("type")
 
             if message_type == "chat":
-                # Handle chat messages through the agent
+                # Garden-scoped chat: require garden_id and include plants info as context
                 user_message = data.get("message", "")
+                garden_id = data.get("garden_id")
 
                 if not TOOLS_AVAILABLE:
                     await manager.send_personal({
@@ -938,77 +1203,77 @@ async def websocket_endpoint(websocket: WebSocket):
                     }, websocket)
                     continue
 
+                if not garden_id:
+                    await manager.send_personal({
+                        "type": "error",
+                        "message": "El chat es por jardin. Incluye 'garden_id' en el mensaje.",
+                        "timestamp": datetime.now().isoformat()
+                    }, websocket)
+                    continue
+
                 try:
-                    from google import genai
-                    client = genai.Client(vertexai=True)
+                    from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+                    from irrigation_agent.tools import get_garden_status
 
-                    # Get current system status for context
-                    system_status = get_system_status()
+                    client = get_genai_client()
 
-                    # Build context-aware prompt for JSON response
-                    context_prompt = f"""Eres GrowthAI, un asistente inteligente de irrigacion.
+                    garden_data = get_garden_status(garden_id)
+                    if garden_data.get("status") != "success":
+                        await manager.send_personal({
+                            "type": "error",
+                            "message": f"Jardin '{garden_id}' no encontrado o sin datos",
+                            "timestamp": datetime.now().isoformat()
+                        }, websocket)
+                        continue
 
-ESTADO ACTUAL DEL SISTEMA:
-{system_status}
+                    personality = garden_data.get("personality", "neutral")
+                    garden_name = garden_data.get("garden_name", garden_id)
+
+                    context_prompt = f"""Eres GrowthAI, asistente de riego para el jardin '{garden_name}'.
+
+PERSONALIDAD: {personality}
+
+ESTADO DEL JARDIN (incluye plantas):
+{garden_data}
 
 MENSAJE DEL USUARIO:
 {user_message}
 
 IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
 {{
-    "message": "Tu respuesta en texto natural",
-    "plants_mentioned": ["nombre1", "nombre2"],
-    "data": {{
-        "clave": "valor"
-    }},
+    "message": "Respuesta en texto natural",
+    "plants_summary": [
+        {{"plant_id": "id", "name": "nombre", "moisture": 0, "health": "good|fair|poor"}}
+    ],
+    "data": {{"clave": "valor"}},
     "suggestions": ["sugerencia1", "sugerencia2"],
     "priority": "info|warning|alert"
 }}
 
 Reglas:
-- "message": Respuesta clara y conversacional en español
-- "plants_mentioned": Lista de plantas mencionadas en la conversación (si aplica)
-- "data": Datos relevantes estructurados (niveles de humedad, temperatura, etc.)
-- "suggestions": Sugerencias o acciones recomendadas (si aplica)
-- "priority": Nivel de importancia (info, warning, alert)
-
-Ejemplos:
-- Si preguntan "¿Como estan mis plantas?": incluye data con humedad de cada planta
-- Si hay alerta: priority = "alert" y suggestions con acciones
-- Si es conversacion normal: priority = "info"""
+- No converses con plantas individuales. Habla a nivel de jardin.
+- Usa los datos de plantas solo como resumen/informacion.
+- Responde en español.
+"""
 
                     response = client.models.generate_content(
                         model=config.worker_model,
                         contents=context_prompt
                     )
 
-                    # Extract response text
-                    response_text = ""
-                    if hasattr(response, 'text'):
-                        response_text = response.text
-                    elif hasattr(response, 'candidates') and response.candidates:
-                        for candidate in response.candidates:
-                            if hasattr(candidate, 'content') and candidate.content:
-                                if hasattr(candidate.content, 'parts'):
-                                    for part in candidate.content.parts:
-                                        if hasattr(part, 'text'):
-                                            response_text += part.text
+                    response_text = extract_text(response)
 
-                    # Try to parse as JSON
                     try:
-                        # Clean markdown code blocks if present
-                        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
-                        if json_match:
-                            response_text = json_match.group(1)
+                        response_data, raw_text = extract_json_object(response_text)
+                        if response_data is None:
+                            raise json.JSONDecodeError("not json", raw_text, 0)
 
-                        # Parse JSON
-                        response_data = json.loads(response_text.strip())
-
-                        # Send structured response
                         await manager.send_personal({
                             "type": "chat_response",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
                             "message": response_data.get("message", ""),
-                            "plants_mentioned": response_data.get("plants_mentioned", []),
+                            "plants_summary": response_data.get("plants_summary", []),
                             "data": response_data.get("data", {}),
                             "suggestions": response_data.get("suggestions", []),
                             "priority": response_data.get("priority", "info"),
@@ -1016,11 +1281,12 @@ Ejemplos:
                         }, websocket)
 
                     except (json.JSONDecodeError, AttributeError):
-                        # Fallback to plain text if JSON parsing fails
                         await manager.send_personal({
                             "type": "chat_response",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
                             "message": response_text.strip(),
-                            "plants_mentioned": [],
+                            "plants_summary": [],
                             "data": {},
                             "suggestions": [],
                             "priority": "info",
@@ -1028,7 +1294,7 @@ Ejemplos:
                         }, websocket)
 
                 except Exception as e:
-                    logger.error(f"Error in WebSocket chat: {e}")
+                    logger.error(f"Error in WebSocket garden chat: {e}")
                     await manager.send_personal({
                         "type": "error",
                         "message": f"Error al procesar mensaje: {str(e)}",

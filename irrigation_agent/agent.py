@@ -1,4 +1,4 @@
-"""Main agent orchestration for the intelligent irrigation system.
+﻿"""Main agent orchestration for the intelligent irrigation system.
 
 This module defines the agent hierarchy:
 - intelligent_irrigation_agent: Root agent supporting both interactive and automated modes
@@ -125,10 +125,10 @@ irrigation_orchestrator = Agent(
        - Collect relevant context
 
     3. **Delegate to Appropriate Agents**
-       - Route sensor questions → Sensor Monitor
-       - Route plant health questions → Nutrient Analyzer
-       - Route scheduling questions → Optimization Agent
-       - Route notification questions → Alert Manager
+       - Route sensor questions â†’ Sensor Monitor
+       - Route plant health questions â†’ Nutrient Analyzer
+       - Route scheduling questions â†’ Optimization Agent
+       - Route notification questions â†’ Alert Manager
 
     4. **Synthesize Response**
        - Combine insights from sub-agents
@@ -176,34 +176,34 @@ irrigation_orchestrator = Agent(
     Orchestrator: "Beginning system health check..."
 
     [Get system status]
-    → Overall: Warning, Water tank at 28%, Tomato moisture at 38%
+    â†’ Overall: Warning, Water tank at 28%, Tomato moisture at 38%
 
     [Delegate to Sensor Monitor]
-    → "Analyze current sensor readings and identify any anomalies"
-    → Response: "All sensors functioning normally. Tomato showing gradual
+    â†’ "Analyze current sensor readings and identify any anomalies"
+    â†’ Response: "All sensors functioning normally. Tomato showing gradual
       moisture decline over 48h. Tank level declining normally based on usage."
 
     [Delegate to Nutrient Analyzer]
-    → "Assess plant health for all plants"
-    → Response: "Tomato health score 3/4 (fair). Water consumption pattern normal
+    â†’ "Assess plant health for all plants"
+    â†’ Response: "Tomato health score 3/4 (fair). Water consumption pattern normal
       for this growth stage. Basil showing early nitrogen deficiency signs."
 
     [Delegate to Optimization Agent]
-    → "Check weather and recommend irrigation schedule"
-    → Response: "No rain forecast for 48 hours. Temperature rising to 30°C tomorrow.
+    â†’ "Check weather and recommend irrigation schedule"
+    â†’ Response: "No rain forecast for 48 hours. Temperature rising to 30Â°C tomorrow.
       Recommend irrigation for tomato within 12 hours (45s duration) and basil (30s).
       Optimal timing: 7 AM tomorrow."
 
     [Synthesize]
-    → Tomato needs irrigation due to declining moisture + hot weather
-    → Basil needs irrigation + nitrogen fertilizer
-    → Water tank at 28% is adequate for planned irrigation (uses ~8L of 28L available)
+    â†’ Tomato needs irrigation due to declining moisture + hot weather
+    â†’ Basil needs irrigation + nitrogen fertilizer
+    â†’ Water tank at 28% is adequate for planned irrigation (uses ~8L of 28L available)
 
     [Delegate to Alert Manager]
-    → "Send appropriate notifications"
-    → MEDIUM: "Irrigation scheduled for tomorrow 7 AM: Tomato (45s), Basil (30s)"
-    → MEDIUM: "Basil showing early nitrogen deficiency - consider fertilizer application"
-    → LOW: "Water tank at 28% (28L remaining) - adequate for 3 days at current usage"
+    â†’ "Send appropriate notifications"
+    â†’ MEDIUM: "Irrigation scheduled for tomorrow 7 AM: Tomato (45s), Basil (30s)"
+    â†’ MEDIUM: "Basil showing early nitrogen deficiency - consider fertilizer application"
+    â†’ LOW: "Water tank at 28% (28L remaining) - adequate for 3 days at current usage"
     ```
 
     ## Special Situations:
@@ -370,3 +370,4 @@ intelligent_irrigation_agent = Agent(
 
 # Alias for ADK web server compatibility
 root_agent = intelligent_irrigation_agent
+
