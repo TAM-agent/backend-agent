@@ -34,10 +34,13 @@ try:
         send_notification
     )
     from irrigation_agent.config import config
+    from irrigation_agent.agent import intelligent_irrigation_agent
     TOOLS_AVAILABLE = True
+    AGENT_AVAILABLE = True
     logger.info("Irrigation agent tools loaded successfully")
 except Exception as e:
     TOOLS_AVAILABLE = False
+    AGENT_AVAILABLE = False
     logger.warning(f"Could not load irrigation agent tools: {e}")
     logger.info("API will run in limited mode without irrigation tools")
 
@@ -51,6 +54,11 @@ class IrrigationRequest(BaseModel):
 class NotificationRequest(BaseModel):
     message: str
     priority: str = "medium"
+
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[list] = None
 
 
 
@@ -180,6 +188,28 @@ async def api_notify(request: NotificationRequest):
         return result
     except Exception as e:
         logger.error(f"Error sending notification: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/chat")
+async def api_chat(request: ChatRequest):
+    """Chat with the intelligent irrigation agent."""
+    if not AGENT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent not available")
+
+    try:
+        response = intelligent_irrigation_agent.send_message(
+            message=request.message,
+            history=request.history or []
+        )
+
+        return {
+            "response": response.text,
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
+        }
+    except Exception as e:
+        logger.error(f"Error in chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
