@@ -7,7 +7,7 @@ steps:
     args:
       - 'build'
       - '-t'
-      - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$BUILD_ID'
       - '-t'
       - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:latest'
       - '.'
@@ -17,7 +17,7 @@ steps:
   - name: 'gcr.io/cloud-builders/docker'
     args:
       - 'push'
-      - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$COMMIT_SHA'
+      - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$BUILD_ID'
     id: 'push-image'
     waitFor: ['build-image']
 
@@ -35,7 +35,7 @@ steps:
       - 'run'
       - 'deploy'
       - 'intelligent-irrigation-agent'
-      - '--image=gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$COMMIT_SHA'
+      - '--image=gcr.io/$PROJECT_ID/intelligent-irrigation-agent:latest'
       - '--region=us-east1'
       - '--platform=managed'
       - '--allow-unauthenticated'
@@ -45,14 +45,13 @@ steps:
       - '--max-instances=10'
       - '--min-instances=0'
       - '--port=8080'
-      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
-      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=us-east1'
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-east1,USE_SIMULATION=true,USE_FIRESTORE=true,GOOGLE_GENAI_USE_VERTEXAI=true,AI_MODEL=gemini-2.5-pro'
     id: 'deploy-cloud-run'
-    waitFor: ['push-image']
+    waitFor: ['push-latest']
 
 # Store images in Google Container Registry
 images:
-  - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:$BUILD_ID'
   - 'gcr.io/$PROJECT_ID/intelligent-irrigation-agent:latest'
 
 # Build options
