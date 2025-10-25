@@ -1,0 +1,31 @@
+def _send_telegram_notification(message: str, priority: str) -> None:
+    """Send notification via Telegram Bot API."""
+    url = f"https://api.telegram.org/bot{notification_config.telegram_bot_token}/sendMessage"
+
+    # Add emoji based on priority
+    emoji_map = {
+        "critical": "🚨",
+        "high": "⚠️",
+        "medium": "ℹ️",
+        "low": "💡"
+    }
+    emoji = emoji_map.get(priority, "ℹ️")
+
+    formatted_message = f"{emoji} *{priority.upper()}*\n\n{message}"
+
+    payload = {
+        "chat_id": notification_config.telegram_chat_id,
+        "text": formatted_message,
+        "parse_mode": "Markdown"
+    }
+
+    response = requests.post(url, json=payload, timeout=10)
+    response.raise_for_status()
+
+
+def _send_email_notification(message: str, priority: str) -> None:
+    """Send notification via email SMTP."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+

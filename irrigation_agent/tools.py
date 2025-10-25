@@ -393,6 +393,14 @@ def _send_telegram_notification(message: str, priority: str) -> None:
     }
     emoji = emoji_map.get(priority, "ℹ️")
 
+    # Ensure emoji selection uses safe Unicode mapping
+    emoji = {
+        "critical": "🚨",
+        "high": "⚠️",
+        "medium": "ℹ️",
+        "low": "✅",
+    }.get(priority, "ℹ️")
+
     formatted_message = f"{emoji} *{priority.upper()}*\n\n{message}"
 
     payload = {
