@@ -45,8 +45,7 @@ steps:
       - '--max-instances=10'
       - '--min-instances=0'
       - '--port=8080'
-      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
-      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=us-east1'
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-east1,USE_SIMULATION=true,USE_FIRESTORE=true,GOOGLE_GENAI_USE_VERTEXAI=true,AI_MODEL=gemini-2.5-pro'
     id: 'deploy-cloud-run'
     waitFor: ['push-image']
 
