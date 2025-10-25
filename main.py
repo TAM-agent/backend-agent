@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Optional, Set
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -1051,6 +1051,104 @@ async def api_audio_stt(file: UploadFile = File(...)):
         logger.error(f"Error in STT: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/voice/gardens/{garden_id}/talk")
+async def api_voice_garden_talk(
+    garden_id: str,
+    request: Request,
+    file: UploadFile | None = File(None),
+    text: Optional[str] = Form(None),
+    tts: Optional[bool] = Form(True),
+    voice_id: Optional[str] = Form(None),
+    model_id: Optional[str] = Form(None),
+    output_format: Optional[str] = Form(None),
+):
+    """Unified voice endpoint: STT (if audio) -> garden chat -> TTS (optional).
+
+    Accepts either:
+    - multipart/form-data with `file` (audio) and optional form fields, or
+    - application/json with { text, history?, tts?, voice_id?, model_id?, output_format? }.
+    """
+    try:
+        # Resolve inputs from multipart or JSON
+        input_text: Optional[str] = None
+        history = None
+        modality = ""
+
+        if file is not None:
+            # Audio path: STT first
+            modality = "audio"
+            audio_bytes = await file.read()
+            from irrigation_agent.service.stt_service import convert_audio_to_text
+
+            transcript = convert_audio_to_text(audio_bytes)
+            if not transcript:
+                raise HTTPException(status_code=400, detail="STT failed or empty transcript")
+            input_text = transcript
+        elif text:
+            modality = "text"
+            input_text = text
+        else:
+            # Try JSON body
+            try:
+                payload = await request.json()
+                modality = payload.get("modality", "text")
+                input_text = payload.get("text")
+                history = payload.get("history")
+                if "tts" in payload:
+                    tts = bool(payload.get("tts"))
+                voice_id = payload.get("voice_id", voice_id)
+                model_id = payload.get("model_id", model_id)
+                output_format = payload.get("output_format", output_format)
+            except Exception:
+                pass
+
+        if not input_text:
+            raise HTTPException(status_code=400, detail="Provide audio file or text")
+
+        # Run garden chat using existing endpoint logic
+        chat_req = ChatRequest(message=input_text, history=history)
+        chat_result = await api_garden_chat(garden_id, chat_req)
+
+        if not isinstance(chat_result, dict) or not chat_result.get("garden_id"):
+            raise HTTPException(status_code=500, detail="Chat processing failed")
+
+        response_text = str(chat_result.get("message", "")).strip()
+
+        out = {
+            "status": "success",
+            "garden_id": garden_id,
+            "modality": modality or ("audio" if file else "text"),
+            "input_text": input_text,
+            "chat": chat_result,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        # Optional TTS of the agent response
+        if (tts is None or bool(tts)) and response_text:
+            try:
+                from irrigation_agent.service.tts_service import convert_text_to_speech
+                audio_b64 = convert_text_to_speech(
+                    response_text,
+                    voice_id=voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                    model_id=model_id or "eleven_multilingual_v2",
+                    output_format=output_format or "mp3_44100_128",
+                )
+                if audio_b64:
+                    out.update({
+                        "audio_base64": audio_b64,
+                        "voice_id": voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                        "format": output_format or "mp3_44100_128",
+                    })
+            except Exception as tts_err:
+                logger.warning(f"TTS step failed: {tts_err}")
+
+        return out
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in unified voice talk: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/agents/eleven/simulate")
 async def api_eleven_simulate(req: ElevenSimulateRequest):
