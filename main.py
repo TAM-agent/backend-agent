@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Optional, Set
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -76,6 +76,27 @@ class NotificationRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[list] = None
+
+
+class CropQuery(BaseModel):
+    commodity: str
+    year: int
+    state: Optional[str] = None
+
+
+class AdvisorRequest(BaseModel):
+    """Request body for garden-level advisor using USDA context."""
+    commodity: str
+    state: Optional[str] = None
+    year: Optional[int] = None
+    user_message: Optional[str] = None
+
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    output_format: Optional[str] = None
 
 
 # WebSocket connection manager
@@ -723,6 +744,263 @@ async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
         raise
     except Exception as e:
         logger.error(f"Error getting recommendation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# AGRICULTURE DATA (USDA Quick Stats)
+# ============================================================================
+
+
+@app.get("/api/agriculture/yield")
+async def api_agri_yield(
+    commodity: str = Query(..., description="Commodity, e.g., CORN, WHEAT"),
+    year: int = Query(..., ge=1900, le=2100),
+    state: Optional[str] = Query(None, description="State alpha code, e.g., IA"),
+):
+    """Get crop yield statistics from USDA Quick Stats."""
+    try:
+        from irrigation_agent.agriculture_service import get_crop_yield
+        result = get_crop_yield(commodity, year, state)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting crop yield: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agriculture/area_planted")
+async def api_agri_area_planted(
+    commodity: str = Query(..., description="Commodity, e.g., CORN, WHEAT"),
+    year: int = Query(..., ge=1900, le=2100),
+    state: Optional[str] = Query(None, description="State alpha code, e.g., IA"),
+):
+    """Get area planted statistics from USDA Quick Stats."""
+    try:
+        from irrigation_agent.agriculture_service import get_area_planted
+        result = get_area_planted(commodity, year, state)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting area planted: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agriculture/search")
+async def api_agri_search(
+    commodity: Optional[str] = Query(None),
+    year: Optional[int] = Query(None),
+    state: Optional[str] = Query(None),
+    statistic: Optional[str] = Query(None, description="statisticcat_desc, e.g., YIELD, AREA PLANTED"),
+    unit: Optional[str] = Query(None, description="unit_desc"),
+    desc: Optional[str] = Query(None, description="short_desc"),
+):
+    """Generic USDA Quick Stats search with common filters."""
+    try:
+        from irrigation_agent.agriculture_service import search_quickstats
+        result = search_quickstats(
+            commodity_desc=commodity,
+            year=year,
+            state_alpha=state,
+            statisticcat_desc=statistic,
+            unit_desc=unit,
+            short_desc=desc,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("error"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Quick Stats search: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/gardens/{garden_id}/advisor")
+async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
+    """Agent advisor for a garden combining local context with USDA Quick Stats.
+
+    Returns a JSON-structured recommendation at garden level (no per-plant chat).
+    """
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_garden_status, get_garden_weather
+        from irrigation_agent.agriculture_service import get_crop_yield, get_area_planted
+        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+
+        client = get_genai_client()
+
+        # Garden context
+        garden_data = get_garden_status(garden_id)
+        if garden_data.get("status") != "success":
+            raise HTTPException(status_code=404, detail=garden_data.get("error", "Garden not found"))
+
+        # USDA context (optional fields)
+        year = req.year or datetime.now().year
+        usda_yield = get_crop_yield(req.commodity, year, req.state)
+        usda_area = get_area_planted(req.commodity, year, req.state)
+
+        # Weather context for the garden (optional if API not configured)
+        weather = get_garden_weather(garden_id)
+
+        personality = garden_data.get("personality", "neutral")
+        garden_name = garden_data.get("garden_name", garden_id)
+
+        context_prompt = f"""Eres GrowthAI, asesor inteligente de riego para el jardin '{garden_name}'.
+
+PERSONALIDAD: {personality}
+
+ESTADO DEL JARDIN (incluye plantas):
+{garden_data}
+
+ESTADISTICAS AGRICOLAS (USDA Quick Stats):
+- Commodity: {req.commodity}  Year: {year}  State: {req.state or '-'}
+- YIELD: {usda_yield}
+- AREA PLANTED: {usda_area}
+
+CLIMA (si disponible):
+{weather}
+
+MENSAJE DEL USUARIO (opcional):
+{req.user_message or ''}
+
+IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
+{{
+  "message": "Recomendacion en texto natural",
+  "irrigation_action": "irrigate_now|irrigate_soon|monitor|skip",
+  "params": {{"duration": 0}},
+  "considered": {{
+     "usda": {{"commodity": "{req.commodity}", "year": {year}, "state": "{req.state or ''}"}},
+     "garden": {{"plants": "resumen"}},
+     "weather": {{"available": {str(weather.get('status') == 'success').lower()} }}
+  }},
+  "priority": "info|warning|alert"
+}}
+
+Reglas:
+- No converses con plantas individuales. Habla a nivel de jardin.
+- Explica brevemente como las estadisticas USDA y el clima influyen en la recomendacion (tendencias macro, etapa del cultivo, lluvia/temperatura). 
+- Responde en español.
+"""
+
+        response = client.models.generate_content(
+            model=config.worker_model,
+            contents=context_prompt
+        )
+
+        response_text = extract_text(response)
+        try:
+            data, raw = extract_json_object(response_text)
+            if data is None:
+                raise json.JSONDecodeError("not json", raw, 0)
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "advisor": data,
+                "timestamp": datetime.now().isoformat()
+            }
+        except json.JSONDecodeError:
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "advisor": {
+                    "message": response_text.strip(),
+                    "irrigation_action": "monitor",
+                    "params": {},
+                    "considered": {
+                        "usda": {"commodity": req.commodity, "year": year, "state": req.state or ''}
+                    },
+                    "priority": "info"
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in garden advisor: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# AUDIO: TTS/STT
+# ============================================================================
+
+
+@app.post("/api/audio/tts")
+async def api_audio_tts(req: TTSRequest):
+    """Text-to-Speech using ElevenLabs. Returns base64 audio data."""
+    try:
+        # Prefer SDK service from fabian branch if available
+        try:
+            from irrigation_agent.tts_service import convert_text_to_speech
+            audio_b64 = convert_text_to_speech(
+                req.text,
+                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                model_id=req.model_id or "eleven_multilingual_v2",
+                output_format=req.output_format or "mp3_44100_128",
+            )
+            if not audio_b64:
+                raise ValueError("TTS conversion failed")
+            return {
+                "status": "success",
+                "audio_base64": audio_b64,
+                "voice_id": req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                "model_id": req.model_id or "eleven_multilingual_v2",
+                "format": req.output_format or "mp3_44100_128",
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception:
+            from irrigation_agent.audio_service import tts_elevenlabs
+            result = tts_elevenlabs(
+                text=req.text,
+                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                model_id=req.model_id or "eleven_multilingual_v2",
+                output_format=req.output_format or "mp3_44100_128",
+            )
+            if result.get("status") == "error":
+                raise HTTPException(status_code=400, detail=result.get("error"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in TTS: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/audio/stt")
+async def api_audio_stt(file: UploadFile = File(...)):
+    """Speech-to-Text using ElevenLabs STT (best-effort)."""
+    try:
+        file_bytes = await file.read()
+        # Prefer SDK service if available
+        try:
+            from irrigation_agent.stt_service import convert_audio_to_text
+            text = convert_audio_to_text(file_bytes)
+            if not text:
+                raise ValueError("STT failed")
+            return {
+                "status": "success",
+                "text": text,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except Exception:
+            from irrigation_agent.audio_service import stt_elevenlabs
+            result = stt_elevenlabs(file_bytes)
+            if result.get("status") == "error":
+                raise HTTPException(status_code=400, detail=result.get("error"))
+            return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in STT: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

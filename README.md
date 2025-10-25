@@ -1401,3 +1401,46 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 **Built with â¤ï¸ for smarter plant care through AI** ðŸŒ±ðŸ¤–
 
+
+## Agriculture Data (USDA Quick Stats)
+
+This service integrates USDA Quick Stats API to enrich crop context (yield, area planted, general series) for better irrigation decisions.
+
+- API: https://quickstats.nass.usda.gov/api
+- Configure key: set `USDA_QUICKSTATS_API_KEY` in `.env`
+- Endpoints added:
+  - `GET /api/agriculture/yield?commodity=CORN&year=2023&state=IA`
+  - `GET /api/agriculture/area_planted?commodity=CORN&year=2023&state=IA`
+  - `GET /api/agriculture/search?commodity=WHEAT&year=2022&statistic=YIELD`
+
+Notes:
+- These endpoints pass through commonly used Quick Stats filters (commodity_desc, statisticcat_desc, etc.).
+- If the API key is missing, the endpoints return HTTP 400 with an explanatory message.
+
+- Advisor endpoint:
+  - `POST /api/gardens/{garden_id}/advisor`
+    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
+    - Combina contexto del jardín con Quick Stats y devuelve una recomendación JSON a nivel de jardín.
+
+- Advisor endpoint:
+  - `POST /api/gardens/{garden_id}/advisor`
+    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
+    - Combina contexto del jardín con Quick Stats y clima (si disponible) y devuelve una recomendación JSON a nivel de jardín.
+
+## Audio (Speech-To-Text / Text-To-Speech)
+
+We integrated ElevenLabs for audio features, inspired by the `fabian` branch example.
+
+- TTS endpoint: `POST /api/audio/tts`
+  - Body: `{ "text": "Hola jardín", "voice_id": "JBFqnCBsd6RMkjVDRZzb", "model_id": "eleven_multilingual_v2", "output_format": "mp3_44100_128" }`
+  - Returns: JSON with `audio_base64` (MP3 by default)
+- STT endpoint: `POST /api/audio/stt`
+  - Multipart file upload: field `file`
+  - Returns: JSON with `text` (best-effort wrapper)
+
+Configure:
+- Set `ELEVENLABS_API_KEY` in `.env`
+- Install deps from `requirements.txt` (includes `elevenlabs` and `python-multipart`)
+
+Notes:
+- STT endpoint relies on ElevenLabs STT HTTP API and may require adjustments depending on account features.

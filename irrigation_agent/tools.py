@@ -269,6 +269,39 @@ def trigger_irrigation(plant_name: str, duration_seconds: int) -> Dict[str, Any]
         )
         duration_seconds = iot_config.max_irrigation_duration
 
+    # Simulation path: update moisture via simulator without HTTP
+    if USE_SIMULATION:
+        try:
+            success = simulator.trigger_irrigation(plant_name, duration_seconds)
+            if success:
+                logger.info(f"[SIM] Irrigation simulated for {plant_name} - {duration_seconds}s")
+                return {
+                    "plant": plant_name,
+                    "duration_seconds": duration_seconds,
+                    "status": "success",
+                    "timestamp": datetime.now().isoformat(),
+                    "simulated": True
+                }
+            else:
+                return {
+                    "plant": plant_name,
+                    "duration_seconds": duration_seconds,
+                    "status": "error",
+                    "timestamp": datetime.now().isoformat(),
+                    "error": "Simulation failed",
+                    "simulated": True
+                }
+        except Exception as e:
+            logger.error(f"Simulation error triggering irrigation for {plant_name}: {e}")
+            return {
+                "plant": plant_name,
+                "duration_seconds": duration_seconds,
+                "status": "error",
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e),
+                "simulated": True
+            }
+
     try:
         url = f"{iot_config.base_url}/api/irrigate"
         payload = {
