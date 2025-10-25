@@ -1,9 +1,12 @@
-import json
+﻿import json
 import re
 import threading
 from typing import Any, Optional, Tuple
 
-from ..config import config
+try:
+    from ..config import config
+except Exception:
+    from irrigation_agent.config import config  # type: ignore
 
 _client_lock = threading.Lock()
 _client_instance = None
@@ -64,3 +67,6 @@ def extract_json_object(text: str) -> Tuple[Optional[dict], str]:
     except json.JSONDecodeError:
         pass
     return None, cleaned
+
+
+
