@@ -94,6 +94,15 @@ class AdvisorRequest(BaseModel):
     user_message: Optional[str] = None
 
 
+class SeedGardenRequest(BaseModel):
+    name: str = "Demo Garden"
+    personality: str = "neutral"
+    latitude: float = 0.0
+    longitude: float = 0.0
+    plant_count: int = 3
+    base_moisture: int = 50
+
+
 class TTSRequest(BaseModel):
     text: str
     voice_id: Optional[str] = None
@@ -928,6 +937,30 @@ Reglas:
         raise
     except Exception as e:
         logger.error(f"Error in garden advisor: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/gardens/{garden_id}/seed")
+async def api_seed_garden(garden_id: str, req: SeedGardenRequest):
+    """Seed or update a garden with plants in simulation/Firestore for testing."""
+    try:
+        from irrigation_agent.service.firebase_service import seed_garden
+        result = seed_garden(
+            garden_id=garden_id,
+            name=req.name,
+            personality=req.personality,
+            latitude=req.latitude,
+            longitude=req.longitude,
+            plant_count=req.plant_count,
+            base_moisture=req.base_moisture,
+        )
+        if result.get("status") != "success":
+            raise HTTPException(status_code=400, detail=result.get("error", "Seed failed"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error seeding garden {garden_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

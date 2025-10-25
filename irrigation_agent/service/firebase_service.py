@@ -293,3 +293,73 @@ class FirestoreSimulator:
 
 
 simulator = FirestoreSimulator(use_firestore=os.getenv('USE_FIRESTORE', 'true').lower() == 'true')
+
+
+def seed_garden(
+    garden_id: str,
+    name: str,
+    personality: str,
+    latitude: float,
+    longitude: float,
+    plant_count: int = 3,
+    base_moisture: int = 50,
+) -> dict:
+    """Create or update a garden with a set of plants for simulation/testing.
+
+    Works with Firestore when available, or updates local JSON fallback.
+    """
+    try:
+        plant_count = max(1, min(plant_count, 50))
+        plants = {}
+        for i in range(1, plant_count + 1):
+            pid = f"plant{i}"
+            plants[pid] = {
+                'id': pid,
+                'name': pid,
+                'current_moisture': max(0, min(100, int(base_moisture))),
+                'last_updated': datetime.now().isoformat(),
+            }
+
+        if simulator.use_firestore and simulator.db:
+            # Upsert garden
+            simulator.db.collection('gardens').document(garden_id).set({
+                'name': name,
+                'personality': personality,
+                'location': name,
+                'latitude': latitude,
+                'longitude': longitude,
+                'created_at': datetime.now(),
+            })
+            # Upsert plants
+            for pid, pdata in plants.items():
+                simulator.db.collection('gardens').document(garden_id)\
+                    .collection('plants').document(pid).set(pdata)
+        else:
+            # Local JSON fallback
+            data = simulator._load_local_data()
+            data.setdefault('gardens', {})
+            data['gardens'][garden_id] = {
+                'name': name,
+                'personality': personality,
+                'location': name,
+                'latitude': latitude,
+                'longitude': longitude,
+            }
+            data.setdefault('garden_plants', {})
+            data['garden_plants'][garden_id] = plants
+            with open(simulator.local_data_file, 'w') as f:
+                json.dump(data, f, indent=2)
+
+        return {
+            'status': 'success',
+            'garden_id': garden_id,
+            'plants_created': plant_count,
+            'timestamp': datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error seeding garden {garden_id}: {e}")
+        return {
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat(),
+        }
