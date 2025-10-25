@@ -760,7 +760,7 @@ async def api_agri_yield(
 ):
     """Get crop yield statistics from USDA Quick Stats."""
     try:
-from irrigation_agent.service.agriculture_service import get_crop_yield
+        from irrigation_agent.service.agriculture_service import get_crop_yield
         result = get_crop_yield(commodity, year, state)
         if result.get("status") == "error":
             raise HTTPException(status_code=400, detail=result.get("error"))
