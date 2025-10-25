@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 import asyncio
 import json
@@ -159,7 +159,7 @@ async def agent_analyze_and_act(condition: str, data: dict) -> dict:
         }
 
     try:
-        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+        from irrigation_agent.utils.genai_utils import get_genai_client, extract_text, extract_json_object
 
         client = get_genai_client()
 
@@ -190,9 +190,9 @@ DATOS DEL SISTEMA:
 {data}
 
 Analiza la situacion y decide:
-1. ¿Que accion inmediata se debe tomar? (regar, no hacer nada, ajustar configuracion, etc.)
-2. ¿Por que es necesaria esta accion?
-3. ¿Cuales son los parametros especificos? (duracion del riego, cantidad de agua, etc.)
+1. Â¿Que accion inmediata se debe tomar? (regar, no hacer nada, ajustar configuracion, etc.)
+2. Â¿Por que es necesaria esta accion?
+3. Â¿Cuales son los parametros especificos? (duracion del riego, cantidad de agua, etc.)
 
 IMPORTANTE: Tu explanation debe reflejar la personalidad '{personality}' del jardin.
 
@@ -834,7 +834,7 @@ async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
     try:
         from irrigation_agent.tools import get_garden_status, get_garden_weather
         from irrigation_agent.service.agriculture_service import get_crop_yield, get_area_planted
-        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+        from irrigation_agent.utils.genai_utils import get_genai_client, extract_text, extract_json_object
 
         client = get_genai_client()
 
@@ -888,7 +888,7 @@ IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
 Reglas:
 - No converses con plantas individuales. Habla a nivel de jardin.
 - Explica brevemente como las estadisticas USDA y el clima influyen en la recomendacion (tendencias macro, etapa del cultivo, lluvia/temperatura). 
-- Responde en español.
+- Responde en espaÃ±ol.
 """
 
         response = client.models.generate_content(
@@ -1011,7 +1011,7 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
         raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
-        from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+        from irrigation_agent.utils.genai_utils import get_genai_client, extract_text, extract_json_object
         from irrigation_agent.tools import get_garden_status
 
         client = get_genai_client()
@@ -1047,7 +1047,7 @@ IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
 Reglas:
 - No converses con plantas individuales. Habla a nivel de jardin.
 - Usa los datos de plantas solo como resumen/informacion.
-- Responde en español.
+- Responde en espaÃ±ol.
 """
 
         response = client.models.generate_content(
@@ -1153,7 +1153,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
 
                 try:
-                    from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
+                    from irrigation_agent.utils.genai_utils import get_genai_client, extract_text, extract_json_object
                     from irrigation_agent.tools import get_garden_status
 
                     client = get_genai_client()
@@ -1194,7 +1194,7 @@ IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
 Reglas:
 - No converses con plantas individuales. Habla a nivel de jardin.
 - Usa los datos de plantas solo como resumen/informacion.
-- Responde en español.
+- Responde en espaÃ±ol.
 """
 
                     response = client.models.generate_content(
@@ -1283,3 +1283,4 @@ if __name__ == "__main__":
     # Start server
     logger.info(f"Starting Intelligent Irrigation Agent API on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
