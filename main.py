@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 # Configure logging for Cloud Run
@@ -18,6 +19,15 @@ app = FastAPI(
     title="Intelligent Irrigation Agent API",
     description="Multi-agent irrigation system using Google Gemini ADK",
     version="0.1.0"
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Try to import irrigation_agent modules, but don't fail if they're not available
