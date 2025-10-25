@@ -31,13 +31,13 @@ This backend agent component transforms a traditional MERN-based automated irrig
 
 ### What Makes This Different
 
-**Traditional System** âŒ
+**Traditional System**
 ```python
 if soil_moisture < 30%:
     water_plant()
 ```
 
-**Intelligent Agent System** âœ…
+**Intelligent Agent System**
 ```python
 Agent analyzes:
 - Current moisture trends (declining 15%/day)
@@ -49,15 +49,7 @@ Decision: "Skip irrigation - rain expected in 8 hours will provide
 adequate water. Saves 15L. Will verify moisture post-rain."
 ```
 
-### Key Benefits
-
-- ðŸ§  **Proactive**: Predicts problems 12-48 hours before they occur
-- ðŸ’§ **Efficient**: 15-25% water savings through optimization
-- ðŸ“Š **Explainable**: Every decision includes reasoning
-- ðŸŒ¤ï¸ **Context-Aware**: Integrates weather, soil, plant knowledge
-- ðŸ”” **Smart Alerts**: Priority-based notifications with fatigue prevention
-
----
+### Key Benefits\n\n- Proactive: Predicts problems 12–48 hours in advance\n- Efficient: 15–25% water savings through optimization\n- Explainable: Every decision includes reasoning\n- Context-aware: Integrates weather, soil and plant knowledge\n- Smart alerts: Priority-based notifications with fatigue prevention\n\n---
 
 ## Quick Start
 
@@ -1399,8 +1391,7 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 ---
 
-**Built with â¤ï¸ for smarter plant care through AI** ðŸŒ±ðŸ¤–
-
+****Built with care for smarter plant care through AI**\n
 
 ## Agriculture Data (USDA Quick Stats)
 
@@ -1416,16 +1407,6 @@ This service integrates USDA Quick Stats API to enrich crop context (yield, area
 Notes:
 - These endpoints pass through commonly used Quick Stats filters (commodity_desc, statisticcat_desc, etc.).
 - If the API key is missing, the endpoints return HTTP 400 with an explanatory message.
-
-- Advisor endpoint:
-  - `POST /api/gardens/{garden_id}/advisor`
-    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
-    - Combina contexto del jardín con Quick Stats y devuelve una recomendación JSON a nivel de jardín.
-
-- Advisor endpoint:
-  - `POST /api/gardens/{garden_id}/advisor`
-    - Body: `{ "commodity": "CORN", "state": "IA", "year": 2023, "user_message": "opcional" }`
-    - Combina contexto del jardín con Quick Stats y clima (si disponible) y devuelve una recomendación JSON a nivel de jardín.
 
 ## Audio (Speech-To-Text / Text-To-Speech)
 
@@ -1444,3 +1425,6 @@ Configure:
 
 Notes:
 - STT endpoint relies on ElevenLabs STT HTTP API and may require adjustments depending on account features.
+
+
+
