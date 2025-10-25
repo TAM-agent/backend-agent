@@ -835,19 +835,37 @@ async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
 
 
 @app.post("/api/chat")
-async def api_chat(request: ChatRequest | file: UploadFile = None):
-    """Chat with the intelligent irrigation agent."""
+async def api_chat(request: Optional[ChatRequest] = None, audio: UploadFile | None = File(default=None)):
+    """Chat with the intelligent irrigation agent. Accepts text (ChatRequest) or an audio file to transcribe."""
     if not TOOLS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
-        from google import genai
+    
+        prompt_text = None
 
+        if audio is not None:
+            audio_bytes = await audio.read()
+            transcript = convert_audio_to_text(audio_bytes)
+            if not transcript:
+                logger.error("STT transcription failed or returned empty result")
+                raise HTTPException(status_code=500, detail="Transcription failed")
+            if request and getattr(request, "message", None):
+                prompt_text = f"{request.message}\n\nTranscription: {transcript}"
+            else:
+                prompt_text = transcript
+        else:
+            if request and getattr(request, "message", None):
+                prompt_text = request.message
+            else:
+                raise HTTPException(status_code=400, detail="No message or audio provided")
+
+        from google import genai
         client = genai.Client(vertexai=True)
 
         response = client.models.generate_content(
             model=config.worker_model,
-            contents=request.message
+            contents=prompt_text
         )
 
         final_response = ""
@@ -864,8 +882,11 @@ async def api_chat(request: ChatRequest | file: UploadFile = None):
         return {
             "response": final_response.strip(),
             "timestamp": datetime.now().isoformat(),
-            "status": "success"
+            "status": "success",
+            "used_transcription": audio is not None
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error in chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
