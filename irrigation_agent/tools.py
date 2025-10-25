@@ -11,6 +11,7 @@ Each tool returns a standardized dictionary with status, data, and timestamp.
 """
 
 import requests
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import logging
@@ -21,6 +22,13 @@ from .config import iot_config, weather_config, notification_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Check if we should use Firestore simulation
+USE_SIMULATION = os.getenv('USE_SIMULATION', 'false').lower() == 'true'
+
+if USE_SIMULATION:
+    from .firebase_service import simulator
+    logger.info("Using Firestore simulation for sensor data")
+
 
 # ============================================================================
 # CORE IOT MONITORING TOOLS
@@ -29,8 +37,8 @@ logger = logging.getLogger(__name__)
 def check_soil_moisture(plant_name: str) -> Dict[str, Any]:
     """Read current soil moisture level from IoT sensor.
 
-    Queries the Node.js/Express backend running on Raspberry Pi to retrieve
-    the current soil moisture reading for a specific plant.
+    Queries the Node.js/Express backend running on Raspberry Pi or Firestore simulation
+    to retrieve the current soil moisture reading for a specific plant.
 
     Args:
         plant_name: Identifier for the plant sensor (e.g., 'tomato', 'basil', 'lettuce')
@@ -52,6 +60,24 @@ def check_soil_moisture(plant_name: str) -> Dict[str, Any]:
             "status": "success"
         }
     """
+    if USE_SIMULATION:
+        moisture = simulator.get_plant_moisture(plant_name)
+        if moisture is not None:
+            return {
+                "plant": plant_name,
+                "moisture_level": moisture,
+                "timestamp": datetime.now().isoformat(),
+                "status": "success"
+            }
+        else:
+            return {
+                "plant": plant_name,
+                "moisture_level": None,
+                "timestamp": datetime.now().isoformat(),
+                "status": "error",
+                "error": f"Plant {plant_name} not found in simulation data"
+            }
+
     try:
         url = f"{iot_config.base_url}/api/sensors/{plant_name}"
         response = requests.get(url, timeout=iot_config.sensor_timeout)
@@ -80,7 +106,7 @@ def check_soil_moisture(plant_name: str) -> Dict[str, Any]:
 def check_water_tank_level() -> Dict[str, Any]:
     """Retrieve current water tank level.
 
-    Queries the backend to get the current water reservoir level and capacity.
+    Queries the backend or Firestore simulation to get the current water reservoir level and capacity.
 
     Returns:
         Dictionary containing:
@@ -99,6 +125,15 @@ def check_water_tank_level() -> Dict[str, Any]:
             "status": "success"
         }
     """
+    if USE_SIMULATION:
+        tank_data = simulator.get_water_tank_status()
+        return {
+            "level_percentage": tank_data.get("level_percentage", 0),
+            "capacity_liters": tank_data.get("capacity_liters", 0),
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
+        }
+
     try:
         url = f"{iot_config.base_url}/api/water-tank"
         response = requests.get(url, timeout=iot_config.sensor_timeout)
@@ -127,7 +162,7 @@ def check_water_tank_level() -> Dict[str, Any]:
 def get_sensor_history(plant_name: str, hours: int = 24) -> Dict[str, Any]:
     """Retrieve historical sensor data for pattern analysis.
 
-    Fetches historical moisture readings from MongoDB for trend analysis,
+    Fetches historical moisture readings from MongoDB or Firestore simulation for trend analysis,
     anomaly detection, and optimization insights.
 
     Args:
@@ -157,6 +192,16 @@ def get_sensor_history(plant_name: str, hours: int = 24) -> Dict[str, Any]:
             "status": "success"
         }
     """
+    if USE_SIMULATION:
+        history = simulator.get_plant_history(plant_name, hours)
+        return {
+            "plant": plant_name,
+            "history": history,
+            "hours_analyzed": hours,
+            "timestamp": datetime.now().isoformat(),
+            "status": "success"
+        }
+
     try:
         url = f"{iot_config.base_url}/api/sensors/{plant_name}/history"
         params = {"hours": hours}
