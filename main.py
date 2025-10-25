@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 # Configure logging for Cloud Run
@@ -34,13 +33,10 @@ try:
         send_notification
     )
     from irrigation_agent.config import config
-    from irrigation_agent.agent import intelligent_irrigation_agent
     TOOLS_AVAILABLE = True
-    AGENT_AVAILABLE = True
     logger.info("Irrigation agent tools loaded successfully")
 except Exception as e:
     TOOLS_AVAILABLE = False
-    AGENT_AVAILABLE = False
     logger.warning(f"Could not load irrigation agent tools: {e}")
     logger.info("API will run in limited mode without irrigation tools")
 
@@ -194,17 +190,32 @@ async def api_notify(request: NotificationRequest):
 @app.post("/api/chat")
 async def api_chat(request: ChatRequest):
     """Chat with the intelligent irrigation agent."""
-    if not AGENT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Agent not available")
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
-        response = intelligent_irrigation_agent.send_message(
-            message=request.message,
-            history=request.history or []
+        from google import genai
+
+        client = genai.Client(vertexai=True)
+
+        response = client.models.generate_content(
+            model=config.worker_model,
+            contents=request.message
         )
 
+        final_response = ""
+        if hasattr(response, 'text'):
+            final_response = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            for candidate in response.candidates:
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts'):
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text'):
+                                final_response += part.text
+
         return {
-            "response": response.text,
+            "response": final_response.strip(),
             "timestamp": datetime.now().isoformat(),
             "status": "success"
         }
