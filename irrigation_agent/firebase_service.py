@@ -134,7 +134,7 @@ class FirestoreSimulator:
             return data.get('water_tank', {})
 
     def get_all_plants(self) -> Dict[str, Any]:
-        """Get all plant data."""
+        """Get all plant data (legacy method - still works with flat plants collection)."""
         if self.use_firestore and self.db:
             try:
                 plants_ref = self.db.collection('plants')
@@ -149,6 +149,111 @@ class FirestoreSimulator:
         else:
             data = self._load_local_data()
             return data.get('plants', {})
+
+    def _convert_timestamps(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Firestore DatetimeWithNanoseconds to ISO strings."""
+        converted = {}
+        for key, value in data.items():
+            if hasattr(value, 'isoformat'):
+                # Convert datetime objects to ISO format strings
+                converted[key] = value.isoformat()
+            elif isinstance(value, dict):
+                # Recursively convert nested dicts
+                converted[key] = self._convert_timestamps(value)
+            elif isinstance(value, list):
+                # Convert lists
+                converted[key] = [
+                    self._convert_timestamps(item) if isinstance(item, dict) else
+                    item.isoformat() if hasattr(item, 'isoformat') else item
+                    for item in value
+                ]
+            else:
+                converted[key] = value
+        return converted
+
+    def get_all_gardens(self) -> Dict[str, Any]:
+        """Get all gardens with their metadata."""
+        if self.use_firestore and self.db:
+            try:
+                gardens_ref = self.db.collection('gardens')
+                docs = gardens_ref.stream()
+                gardens = {}
+                for doc in docs:
+                    garden_data = self._convert_timestamps(doc.to_dict())
+                    garden_data['id'] = doc.id
+                    gardens[doc.id] = garden_data
+                return gardens
+            except Exception as e:
+                logger.error(f"Error reading gardens from Firestore: {e}")
+                return {}
+        else:
+            # Fallback to local data
+            return {}
+
+    def get_garden(self, garden_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific garden by ID."""
+        if self.use_firestore and self.db:
+            try:
+                doc_ref = self.db.collection('gardens').document(garden_id)
+                doc = doc_ref.get()
+                if doc.exists:
+                    garden_data = self._convert_timestamps(doc.to_dict())
+                    garden_data['id'] = doc.id
+                    return garden_data
+                return None
+            except Exception as e:
+                logger.error(f"Error reading garden {garden_id}: {e}")
+                return None
+        return None
+
+    def get_garden_plants(self, garden_id: str) -> Dict[str, Any]:
+        """Get all plants in a specific garden."""
+        if self.use_firestore and self.db:
+            try:
+                plants_ref = self.db.collection('gardens').document(garden_id).collection('plants')
+                docs = plants_ref.stream()
+                plants = {}
+                for doc in docs:
+                    plant_data = self._convert_timestamps(doc.to_dict())
+                    plant_data['id'] = doc.id
+                    plants[doc.id] = plant_data
+                return plants
+            except Exception as e:
+                logger.error(f"Error reading plants for garden {garden_id}: {e}")
+                return {}
+        return {}
+
+    def get_garden_plant(self, garden_id: str, plant_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific plant from a garden."""
+        if self.use_firestore and self.db:
+            try:
+                doc_ref = self.db.collection('gardens').document(garden_id).collection('plants').document(plant_id)
+                doc = doc_ref.get()
+                if doc.exists:
+                    plant_data = self._convert_timestamps(doc.to_dict())
+                    plant_data['id'] = doc.id
+                    plant_data['garden_id'] = garden_id
+                    return plant_data
+                return None
+            except Exception as e:
+                logger.error(f"Error reading plant {plant_id} from garden {garden_id}: {e}")
+                return None
+        return None
+
+    def update_garden_plant_moisture(self, garden_id: str, plant_id: str, moisture: int) -> bool:
+        """Update moisture level for a plant in a garden."""
+        if self.use_firestore and self.db:
+            try:
+                doc_ref = self.db.collection('gardens').document(garden_id).collection('plants').document(plant_id)
+                doc_ref.update({
+                    'current_moisture': moisture,
+                    'last_updated': firestore.SERVER_TIMESTAMP
+                })
+                return True
+            except Exception as e:
+                logger.error(f"Error updating plant {plant_id} in garden {garden_id}: {e}")
+                return False
+        return False
 
     def update_plant_moisture(self, plant_name: str, moisture: int) -> bool:
         """Update plant moisture level."""
