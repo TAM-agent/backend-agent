@@ -771,3 +771,344 @@ def _classify_health(moisture: Optional[float]) -> str:
         return "good"
     else:
         return "fair"  # Overwatering risk
+
+
+# ============================================================================
+# GARDEN-BASED FUNCTIONS (New Architecture)
+# ============================================================================
+
+def get_all_gardens() -> Dict[str, Any]:
+    """Get all gardens from Firestore.
+
+    Returns:
+        Dictionary with garden data organized by garden ID.
+        Each garden includes: id, name, personality, location, plant_type, etc.
+    """
+    try:
+        if USE_SIMULATION:
+            gardens = simulator.get_all_gardens()
+            return {
+                "gardens": gardens,
+                "total_gardens": len(gardens),
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            # Real IoT implementation would go here
+            return {
+                "gardens": {},
+                "total_gardens": 0,
+                "status": "error",
+                "error": "Real IoT mode not implemented for gardens yet",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error getting all gardens: {e}")
+        return {
+            "gardens": {},
+            "total_gardens": 0,
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_garden_status(garden_id: str) -> Dict[str, Any]:
+    """Get status for a specific garden and all its plants.
+
+    Args:
+        garden_id: The ID of the garden to query
+
+    Returns:
+        Dictionary containing garden info, plants status, and alerts
+    """
+    try:
+        if USE_SIMULATION:
+            # Get garden metadata
+            garden = simulator.get_garden(garden_id)
+            if not garden:
+                return {
+                    "status": "error",
+                    "error": f"Garden {garden_id} not found",
+                    "timestamp": datetime.now().isoformat()
+                }
+
+            # Get plants in this garden
+            plants = simulator.get_garden_plants(garden_id)
+
+            plant_status = {}
+            critical_issues = []
+            warnings = []
+
+            for plant_id, plant_data in plants.items():
+                moisture = plant_data.get('current_moisture')
+                plant_status[plant_id] = {
+                    "name": plant_data.get('name', plant_id),
+                    "moisture": moisture,
+                    "health": _classify_health(moisture),
+                    "last_irrigation": plant_data.get('last_irrigation'),
+                    "last_updated": str(plant_data.get('last_updated', ''))
+                }
+
+                if moisture is not None:
+                    if moisture < 20:
+                        critical_issues.append(f"{plant_id} critically dehydrated ({moisture}%)")
+                    elif moisture < 40:
+                        warnings.append(f"{plant_id} moisture low ({moisture}%)")
+                    elif moisture > 85:
+                        warnings.append(f"{plant_id} possibly overwatered ({moisture}%)")
+
+            # Determine overall health
+            if critical_issues:
+                overall_health = "critical"
+            elif warnings:
+                overall_health = "warning"
+            else:
+                overall_health = "healthy"
+
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden.get('name'),
+                "personality": garden.get('personality'),
+                "location": garden.get('location'),
+                "plant_type": garden.get('plant_type'),
+                "area_m2": garden.get('area_m2'),
+                "overall_health": overall_health,
+                "plant_status": plant_status,
+                "critical_issues": critical_issues,
+                "warnings": warnings,
+                "total_plants": len(plants),
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "Real IoT mode not implemented for gardens yet",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error getting garden {garden_id} status: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_all_gardens_status() -> Dict[str, Any]:
+    """Get status for ALL gardens and their plants.
+
+    Returns:
+        Dictionary with status for each garden and overall system health.
+    """
+    try:
+        if USE_SIMULATION:
+            gardens_data = simulator.get_all_gardens()
+
+            all_gardens_status = {}
+            total_critical = 0
+            total_warnings = 0
+
+            for garden_id in gardens_data.keys():
+                garden_status = get_garden_status(garden_id)
+                all_gardens_status[garden_id] = garden_status
+
+                if garden_status.get('status') == 'success':
+                    total_critical += len(garden_status.get('critical_issues', []))
+                    total_warnings += len(garden_status.get('warnings', []))
+
+            # Overall system health
+            if total_critical > 0:
+                overall_health = "critical"
+            elif total_warnings > 0:
+                overall_health = "warning"
+            else:
+                overall_health = "healthy"
+
+            return {
+                "overall_health": overall_health,
+                "total_gardens": len(all_gardens_status),
+                "total_critical_issues": total_critical,
+                "total_warnings": total_warnings,
+                "gardens": all_gardens_status,
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "Real IoT mode not implemented for gardens yet",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error getting all gardens status: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_plant_in_garden(garden_id: str, plant_id: str) -> Dict[str, Any]:
+    """Get detailed status for a specific plant in a garden.
+
+    Args:
+        garden_id: The garden ID
+        plant_id: The plant ID within that garden
+
+    Returns:
+        Detailed plant data including moisture, history, health score
+    """
+    try:
+        if USE_SIMULATION:
+            plant = simulator.get_garden_plant(garden_id, plant_id)
+            if not plant:
+                return {
+                    "status": "error",
+                    "error": f"Plant {plant_id} not found in garden {garden_id}",
+                    "timestamp": datetime.now().isoformat()
+                }
+
+            garden = simulator.get_garden(garden_id)
+
+            return {
+                "garden_id": garden_id,
+                "garden_name": garden.get('name') if garden else None,
+                "plant_id": plant_id,
+                "plant_name": plant.get('name', plant_id),
+                "current_moisture": plant.get('current_moisture'),
+                "health_score": plant.get('health_score'),
+                "health": _classify_health(plant.get('current_moisture')),
+                "last_irrigation": plant.get('last_irrigation'),
+                "last_updated": str(plant.get('last_updated', '')),
+                "history": plant.get('history', []),
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            }
+        else:
+            return {
+                "status": "error",
+                "error": "Real IoT mode not implemented for gardens yet",
+                "timestamp": datetime.now().isoformat()
+            }
+    except Exception as e:
+        logger.error(f"Error getting plant {plant_id} in garden {garden_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_garden_weather(garden_id: str) -> Dict[str, Any]:
+    """Get weather data for a specific garden location using Google Weather API.
+
+    Args:
+        garden_id: The garden ID
+
+    Returns:
+        Weather data including current conditions and forecast
+    """
+    try:
+        # Get garden to extract coordinates
+        garden = simulator.get_garden(garden_id)
+        if not garden:
+            return {
+                "status": "error",
+                "error": f"Garden {garden_id} not found",
+                "timestamp": datetime.now().isoformat()
+            }
+
+        latitude = garden.get('latitude')
+        longitude = garden.get('longitude')
+
+        if not latitude or not longitude:
+            return {
+                "status": "error",
+                "error": "Garden location coordinates not available",
+                "timestamp": datetime.now().isoformat()
+            }
+
+        # Get weather data using Google Weather API
+        from irrigation_agent.weather_service import get_weather_for_garden
+
+        weather_data = get_weather_for_garden(latitude, longitude)
+
+        # Add garden context
+        weather_data['garden_id'] = garden_id
+        weather_data['garden_name'] = garden.get('name')
+        weather_data['garden_location'] = garden.get('location')
+
+        return weather_data
+
+    except Exception as e:
+        logger.error(f"Error getting weather for garden {garden_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+def get_irrigation_recommendation_with_weather(garden_id: str, plant_id: str) -> Dict[str, Any]:
+    """Get irrigation recommendation considering weather forecast.
+
+    Args:
+        garden_id: The garden ID
+        plant_id: The plant ID
+
+    Returns:
+        Recommendation with weather-based analysis
+    """
+    try:
+        # Get plant data
+        plant_data = get_plant_in_garden(garden_id, plant_id)
+        if plant_data.get('status') != 'success':
+            return plant_data
+
+        # Get weather forecast
+        weather_data = get_garden_weather(garden_id)
+        if weather_data.get('status') != 'success':
+            # Return basic recommendation without weather
+            moisture = plant_data.get('current_moisture', 0)
+            return {
+                "action": "irrigate_soon" if moisture < 40 else "monitor",
+                "reason": f"Humedad actual: {moisture}%. Sin datos meteorológicos disponibles.",
+                "weather_available": False,
+                "plant_data": plant_data,
+                "status": "success",
+                "timestamp": datetime.now().isoformat()
+            }
+
+        # Get weather-based recommendation
+        from irrigation_agent.weather_service import get_irrigation_recommendation
+
+        recommendation = get_irrigation_recommendation(
+            weather_data,
+            plant_data.get('current_moisture', 0)
+        )
+
+        # Add context
+        recommendation['plant_data'] = {
+            "garden_id": garden_id,
+            "plant_id": plant_id,
+            "plant_name": plant_data.get('plant_name'),
+            "current_moisture": plant_data.get('current_moisture'),
+            "health": plant_data.get('health')
+        }
+        recommendation['weather_data'] = {
+            "current_temp": weather_data.get('current', {}).get('temperature'),
+            "current_humidity": weather_data.get('current', {}).get('humidity'),
+            "rain_forecast": weather_data.get('forecast', [])[:2]  # Next 2 days
+        }
+
+        return recommendation
+
+    except Exception as e:
+        logger.error(f"Error getting recommendation for {plant_id} in {garden_id}: {e}")
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }

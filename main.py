@@ -134,8 +134,25 @@ async def agent_analyze_and_act(condition: str, data: dict) -> dict:
 
         client = genai.Client(vertexai=True)
 
+        # Extract garden personality from data
+        personality = data.get("personality", "professional")
+        garden_name = data.get("garden_name", "el jardin")
+
+        # Build personality-based communication style
+        personality_styles = {
+            "friendly": "Usa un tono amigable, carinoso y cercano. Habla como un amigo que cuida sus plantas con amor.",
+            "professional": "Usa un tono profesional, tecnico y preciso. Proporciona datos y recomendaciones basadas en mejores practicas.",
+            "playful": "Usa un tono divertido, creativo y alegre. Haz que el cuidado de plantas sea entretenido.",
+            "caring": "Usa un tono compasivo y maternal. Muestra preocupacion genuina por el bienestar de las plantas.",
+            "neutral": "Usa un tono informativo y objetivo. Proporciona hechos sin agregar emociones."
+        }
+        style_instruction = personality_styles.get(personality, personality_styles["neutral"])
+
         # Build context prompt for the agent
-        prompt = f"""Eres GrowthAI, un agente inteligente de irrigacion.
+        prompt = f"""Eres GrowthAI, un agente inteligente de irrigacion para el jardin '{garden_name}'.
+
+PERSONALIDAD DEL JARDIN: {personality}
+ESTILO DE COMUNICACION: {style_instruction}
 
 SITUACION ACTUAL:
 {condition}
@@ -148,12 +165,15 @@ Analiza la situacion y decide:
 2. ¿Por que es necesaria esta accion?
 3. ¿Cuales son los parametros especificos? (duracion del riego, cantidad de agua, etc.)
 
+IMPORTANTE: Tu explanation debe reflejar la personalidad '{personality}' del jardin.
+
 Responde en formato JSON con esta estructura:
 {{
     "decision": "regar|esperar|alerta|ajustar",
-    "plant": "nombre de la planta afectada",
+    "plant_id": "ID de la planta afectada",
+    "garden_id": "ID del jardin",
     "action_params": {{"duration": 30, "reason": "..."}},
-    "explanation": "Explicacion clara y concisa para el usuario",
+    "explanation": "Explicacion clara y concisa para el usuario en tono {personality}",
     "priority": "critical|high|medium|low"
 }}"""
 
@@ -230,10 +250,11 @@ Responde en formato JSON con esta estructura:
 # Background monitoring task
 async def monitor_system():
     """
-    Continuously monitor system conditions and trigger agent decisions.
+    Continuously monitor ALL gardens and their plants.
+    Triggers agent decisions based on garden context and personality.
     Runs as a background task when the application starts.
     """
-    logger.info("Starting system monitoring task")
+    logger.info("Starting garden monitoring task")
 
     while True:
         try:
@@ -241,87 +262,91 @@ async def monitor_system():
                 await asyncio.sleep(60)
                 continue
 
-            # Get current system status
-            status = get_system_status()
+            # Import garden functions
+            from irrigation_agent.tools import get_all_gardens_status
 
-            # Check for critical conditions
-            alerts = []
+            # Get status for all gardens
+            gardens_status = get_all_gardens_status()
 
-            # Check each plant
-            plant_status = status.get("plant_status", {})
-            for plant_name, plant_data in plant_status.items():
-                moisture = plant_data.get("moisture", 0)
+            if gardens_status.get("status") != "success":
+                logger.error(f"Error getting gardens status: {gardens_status.get('error')}")
+                await asyncio.sleep(60)
+                continue
 
-                # Critical: Very low moisture
-                if moisture < 30:
-                    alert = {
-                        "type": "low_moisture",
-                        "severity": "critical",
-                        "plant": plant_name,
-                        "moisture": moisture,
-                        "message": f"Humedad critica en {plant_name}: {moisture}%"
-                    }
-                    alerts.append(alert)
+            # Monitor each garden
+            for garden_id, garden_data in gardens_status.get("gardens", {}).items():
+                if garden_data.get("status") != "success":
+                    continue
 
-                    # Let agent decide and act
-                    decision = await agent_analyze_and_act(
-                        f"Humedad critica detectada en {plant_name}",
-                        {
-                            "plant": plant_name,
+                garden_name = garden_data.get("garden_name", garden_id)
+                personality = garden_data.get("personality", "neutral")
+
+                # Check each plant in this garden
+                for plant_id, plant_data in garden_data.get("plant_status", {}).items():
+                    moisture = plant_data.get("moisture", 0)
+
+                    # Critical: Very low moisture
+                    if moisture < 30:
+                        alert = {
+                            "type": "low_moisture",
+                            "severity": "critical",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
+                            "plant_id": plant_id,
+                            "plant_name": plant_data.get("name", plant_id),
                             "moisture": moisture,
-                            "threshold": 30,
-                            "tank_level": status.get("water_tank", {}).get("level_percentage", 0)
+                            "message": f"[{garden_name}] Humedad critica en {plant_id}: {moisture}%"
                         }
-                    )
 
-                    # Broadcast to all connected clients
-                    await manager.broadcast({
-                        "type": "agent_decision",
-                        "alert": alert,
-                        "decision": decision,
-                        "timestamp": datetime.now().isoformat()
-                    })
+                        # Let agent decide and act with garden context
+                        decision = await agent_analyze_and_act(
+                            f"Humedad critica detectada en planta {plant_id} del jardin {garden_name}",
+                            {
+                                "garden_id": garden_id,
+                                "garden_name": garden_name,
+                                "personality": personality,
+                                "plant_id": plant_id,
+                                "plant_name": plant_data.get("name", plant_id),
+                                "moisture": moisture,
+                                "threshold": 30,
+                                "last_irrigation": plant_data.get("last_irrigation")
+                            }
+                        )
 
-                # Warning: Low moisture
-                elif moisture < 45:
-                    alert = {
-                        "type": "low_moisture",
-                        "severity": "warning",
-                        "plant": plant_name,
-                        "moisture": moisture,
-                        "message": f"Humedad baja en {plant_name}: {moisture}%"
-                    }
-                    alerts.append(alert)
+                        # Broadcast to all connected clients with garden context
+                        await manager.broadcast({
+                            "type": "agent_decision",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
+                            "personality": personality,
+                            "alert": alert,
+                            "decision": decision,
+                            "timestamp": datetime.now().isoformat()
+                        })
 
-                    await manager.broadcast({
-                        "type": "alert",
-                        "alert": alert,
-                        "timestamp": datetime.now().isoformat()
-                    })
+                    # Warning: Low moisture
+                    elif moisture < 45:
+                        alert = {
+                            "type": "low_moisture",
+                            "severity": "warning",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
+                            "plant_id": plant_id,
+                            "plant_name": plant_data.get("name", plant_id),
+                            "moisture": moisture,
+                            "message": f"[{garden_name}] Humedad baja en {plant_id}: {moisture}%"
+                        }
 
-            # Check water tank
-            tank_level = status.get("water_tank", {}).get("level_percentage", 0)
-            if tank_level < 20:
-                alert = {
-                    "type": "low_tank",
-                    "severity": "critical",
-                    "tank_level": tank_level,
-                    "message": f"Nivel de tanque critico: {tank_level}%"
-                }
-                alerts.append(alert)
-
-                await manager.broadcast({
-                    "type": "alert",
-                    "alert": alert,
-                    "timestamp": datetime.now().isoformat()
-                })
-
-            # Check temperature (from weather or sensors)
-            # TODO: Add temperature sensor integration
+                        await manager.broadcast({
+                            "type": "alert",
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
+                            "personality": personality,
+                            "alert": alert,
+                            "timestamp": datetime.now().isoformat()
+                        })
 
             # Sleep for monitoring interval
-            # Production: 300 seconds (5 minutes)
-            # Testing: 30 seconds
             monitoring_interval = int(os.getenv('MONITORING_INTERVAL_SECONDS', '30'))
             await asyncio.sleep(monitoring_interval)
 
@@ -467,70 +492,100 @@ async def api_notify(request: NotificationRequest):
 
 @app.post("/api/monitor/trigger")
 async def api_trigger_monitoring():
-    """Manually trigger the monitoring system to check all conditions immediately."""
+    """Manually trigger the monitoring system to check all gardens immediately."""
     if not TOOLS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
         logger.info("Manual monitoring trigger requested")
 
-        # Get current system status
-        status = get_system_status()
+        # Import garden functions
+        from irrigation_agent.tools import get_all_gardens_status
+
+        # Get status for all gardens
+        gardens_status = get_all_gardens_status()
+
+        if gardens_status.get("status") != "success":
+            raise HTTPException(status_code=500, detail=gardens_status.get("error"))
+
         alerts = []
         decisions = []
 
-        # Check each plant
-        plant_status = status.get("plant_status", {})
-        for plant_name, plant_data in plant_status.items():
-            moisture = plant_data.get("moisture", 0)
+        # Monitor each garden
+        for garden_id, garden_data in gardens_status.get("gardens", {}).items():
+            if garden_data.get("status") != "success":
+                continue
 
-            # Critical: Very low moisture
-            if moisture < 30:
-                alert = {
-                    "type": "low_moisture",
-                    "severity": "critical",
-                    "plant": plant_name,
-                    "moisture": moisture,
-                    "message": f"Humedad critica en {plant_name}: {moisture}%"
-                }
-                alerts.append(alert)
+            garden_name = garden_data.get("garden_name", garden_id)
+            personality = garden_data.get("personality", "neutral")
 
-                # Let agent decide and act
-                decision = await agent_analyze_and_act(
-                    f"Humedad critica detectada en {plant_name}",
-                    {
-                        "plant": plant_name,
+            # Check each plant in this garden
+            for plant_id, plant_data in garden_data.get("plant_status", {}).items():
+                moisture = plant_data.get("moisture", 0)
+
+                # Critical: Very low moisture
+                if moisture < 30:
+                    alert = {
+                        "type": "low_moisture",
+                        "severity": "critical",
+                        "garden_id": garden_id,
+                        "garden_name": garden_name,
+                        "plant_id": plant_id,
+                        "plant_name": plant_data.get("name", plant_id),
                         "moisture": moisture,
-                        "threshold": 30,
-                        "tank_level": status.get("water_tank", {}).get("level_percentage", 0)
+                        "message": f"[{garden_name}] Humedad critica en {plant_id}: {moisture}%"
                     }
-                )
-                decisions.append(decision)
+                    alerts.append(alert)
 
-                # Broadcast to all connected clients
-                await manager.broadcast({
-                    "type": "agent_decision",
-                    "alert": alert,
-                    "decision": decision,
-                    "timestamp": datetime.now().isoformat()
-                })
+                    # Let agent decide and act with garden context
+                    decision = await agent_analyze_and_act(
+                        f"Humedad critica detectada en planta {plant_id} del jardin {garden_name}",
+                        {
+                            "garden_id": garden_id,
+                            "garden_name": garden_name,
+                            "personality": personality,
+                            "plant_id": plant_id,
+                            "plant_name": plant_data.get("name", plant_id),
+                            "moisture": moisture,
+                            "threshold": 30,
+                            "last_irrigation": plant_data.get("last_irrigation")
+                        }
+                    )
+                    decisions.append(decision)
 
-            # Warning: Low moisture
-            elif moisture < 45:
-                alert = {
-                    "type": "low_moisture",
-                    "severity": "warning",
-                    "plant": plant_name,
-                    "moisture": moisture,
-                    "message": f"Humedad baja en {plant_name}: {moisture}%"
-                }
-                alerts.append(alert)
+                    # Broadcast to all connected clients with garden context
+                    await manager.broadcast({
+                        "type": "agent_decision",
+                        "garden_id": garden_id,
+                        "garden_name": garden_name,
+                        "personality": personality,
+                        "alert": alert,
+                        "decision": decision,
+                        "timestamp": datetime.now().isoformat()
+                    })
 
-                await manager.broadcast({
-                    "type": "alert",
-                    "alert": alert,
-                    "timestamp": datetime.now().isoformat()
-                })
+                # Warning: Low moisture
+                elif moisture < 45:
+                    alert = {
+                        "type": "low_moisture",
+                        "severity": "warning",
+                        "garden_id": garden_id,
+                        "garden_name": garden_name,
+                        "plant_id": plant_id,
+                        "plant_name": plant_data.get("name", plant_id),
+                        "moisture": moisture,
+                        "message": f"[{garden_name}] Humedad baja en {plant_id}: {moisture}%"
+                    }
+                    alerts.append(alert)
+
+                    await manager.broadcast({
+                        "type": "alert",
+                        "garden_id": garden_id,
+                        "garden_name": garden_name,
+                        "personality": personality,
+                        "alert": alert,
+                        "timestamp": datetime.now().isoformat()
+                    })
 
         return {
             "status": "success",
@@ -543,6 +598,237 @@ async def api_trigger_monitoring():
 
     except Exception as e:
         logger.error(f"Error in manual monitoring: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# GARDEN ENDPOINTS (New Architecture)
+# ============================================================================
+
+@app.get("/api/gardens")
+async def api_get_all_gardens():
+    """Get all gardens with their metadata."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_all_gardens
+        result = get_all_gardens()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting all gardens: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gardens/status")
+async def api_get_all_gardens_status():
+    """Get status for ALL gardens and their plants."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_all_gardens_status
+        result = get_all_gardens_status()
+        return result
+    except Exception as e:
+        logger.error(f"Error getting gardens status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gardens/{garden_id}")
+async def api_get_garden_status(garden_id: str):
+    """Get status for a specific garden and all its plants."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_garden_status
+        result = get_garden_status(garden_id)
+
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result.get("error"))
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting garden {garden_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gardens/{garden_id}/plants/{plant_id}")
+async def api_get_plant_in_garden(garden_id: str, plant_id: str):
+    """Get detailed status for a specific plant in a garden."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_plant_in_garden
+        result = get_plant_in_garden(garden_id, plant_id)
+
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result.get("error"))
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting plant {plant_id} in garden {garden_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/gardens/{garden_id}/plants/{plant_id}/chat")
+async def api_chat_with_plant(garden_id: str, plant_id: str, request: ChatRequest):
+    """Chat with the agent focused on a specific plant in a garden."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from google import genai
+        from irrigation_agent.tools import get_plant_in_garden, get_garden_status
+
+        client = genai.Client(vertexai=True)
+
+        # Get plant and garden context
+        plant_data = get_plant_in_garden(garden_id, plant_id)
+        garden_data = get_garden_status(garden_id)
+
+        if plant_data.get("status") == "error" or garden_data.get("status") == "error":
+            raise HTTPException(status_code=404, detail="Plant or garden not found")
+
+        garden_name = garden_data.get("garden_name")
+        personality = garden_data.get("personality", "professional")
+
+        # Build personality-based prompt
+        personality_styles = {
+            "friendly": "Usa un tono amigable, carinoso y cercano. Habla como un amigo que cuida sus plantas con amor.",
+            "professional": "Usa un tono profesional, tecnico y preciso. Proporciona datos y recomendaciones basadas en mejores practicas.",
+            "playful": "Usa un tono divertido, creativo y alegre. Haz que el cuidado de plantas sea entretenido.",
+            "caring": "Usa un tono compasivo y maternal. Muestra preocupacion genuina por el bienestar de las plantas.",
+            "neutral": "Usa un tono informativo y objetivo. Proporciona hechos sin agregar emociones."
+        }
+        style_instruction = personality_styles.get(personality, personality_styles["neutral"])
+
+        context_prompt = f"""Eres GrowthAI, asistente de irrigacion para el jardin '{garden_name}'.
+
+PERSONALIDAD DEL JARDIN: {personality}
+ESTILO DE COMUNICACION: {style_instruction}
+
+CONTEXTO DE LA PLANTA:
+- ID: {plant_id}
+- Nombre: {plant_data.get('plant_name')}
+- Humedad actual: {plant_data.get('current_moisture')}%
+- Salud: {plant_data.get('health')}
+- Ultima irrigacion: {plant_data.get('last_irrigation')}
+
+PREGUNTA DEL USUARIO:
+{request.message}
+
+Responde en formato JSON:
+{{
+    "message": "Tu respuesta en tono {personality}",
+    "plants_mentioned": ["{plant_id}"],
+    "data": {{"moisture": {plant_data.get('current_moisture')}, "health": "{plant_data.get('health')}"}},
+    "suggestions": ["sugerencia1", "sugerencia2"],
+    "priority": "info|warning|alert"
+}}"""
+
+        response = client.models.generate_content(
+            model=config.worker_model,
+            contents=context_prompt
+        )
+
+        # Extract and parse response
+        response_text = ""
+        if hasattr(response, 'text'):
+            response_text = response.text
+        elif hasattr(response, 'candidates') and response.candidates:
+            for candidate in response.candidates:
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts'):
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text'):
+                                response_text += part.text
+
+        # Parse JSON
+        import json
+        import re
+        json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+        if json_match:
+            response_text = json_match.group(1)
+
+        try:
+            response_data = json.loads(response_text.strip())
+            return {
+                "response": response_data.get("message", response_text),
+                "plants_mentioned": response_data.get("plants_mentioned", [plant_id]),
+                "data": response_data.get("data", {}),
+                "suggestions": response_data.get("suggestions", []),
+                "priority": response_data.get("priority", "info"),
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "personality": personality,
+                "timestamp": datetime.now().isoformat()
+            }
+        except json.JSONDecodeError:
+            return {
+                "response": response_text.strip(),
+                "plants_mentioned": [plant_id],
+                "data": {},
+                "suggestions": [],
+                "priority": "info",
+                "garden_id": garden_id,
+                "garden_name": garden_name,
+                "personality": personality,
+                "timestamp": datetime.now().isoformat()
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in plant chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gardens/{garden_id}/weather")
+async def api_get_garden_weather(garden_id: str):
+    """Get weather forecast for a garden location using Google Weather API."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_garden_weather
+        result = get_garden_weather(garden_id)
+
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result.get("error"))
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting weather for garden {garden_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gardens/{garden_id}/plants/{plant_id}/recommendation")
+async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
+    """Get irrigation recommendation with weather analysis for a specific plant."""
+    if not TOOLS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Agent tools not available")
+
+    try:
+        from irrigation_agent.tools import get_irrigation_recommendation_with_weather
+        result = get_irrigation_recommendation_with_weather(garden_id, plant_id)
+
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result.get("error"))
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting recommendation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
