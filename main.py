@@ -1098,10 +1098,13 @@ Reglas:
             response_data, raw_text = extract_json_object(response_text)
             if response_data is None:
                 raise json.JSONDecodeError("not json", raw_text, 0)
+            _msg = str(response_data.get("message", response_text)).strip()
+            if garden_name and garden_name.lower() not in _msg.lower():
+                _msg = f"{garden_name}: {_msg}"
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
-                "message": response_data.get("message", response_text),
+                "message": _msg,
                 "plants_summary": response_data.get("plants_summary", []),
                 "data": response_data.get("data", {}),
                 "suggestions": response_data.get("suggestions", []),
@@ -1109,10 +1112,13 @@ Reglas:
                 "timestamp": datetime.now().isoformat()
             }
         except json.JSONDecodeError:
+            _fallback_msg = response_text.strip()
+            if garden_name and garden_name.lower() not in _fallback_msg.lower():
+                _fallback_msg = f"{garden_name}: {_fallback_msg}"
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
-                "message": response_text.strip(),
+                "message": _fallback_msg,
                 "plants_summary": [],
                 "data": {},
                 "suggestions": [],
@@ -1259,11 +1265,14 @@ Reglas:
                         if response_data is None:
                             raise json.JSONDecodeError("not json", raw_text, 0)
 
+                        _ws_msg = str(response_data.get("message", "")).strip()
+                        if garden_name and garden_name.lower() not in _ws_msg.lower():
+                            _ws_msg = f"{garden_name}: {_ws_msg}"
                         await manager.send_personal({
                             "type": "chat_response",
                             "garden_id": garden_id,
                             "garden_name": garden_name,
-                            "message": response_data.get("message", ""),
+                            "message": _ws_msg,
                             "plants_summary": response_data.get("plants_summary", []),
                             "data": response_data.get("data", {}),
                             "suggestions": response_data.get("suggestions", []),
@@ -1272,11 +1281,14 @@ Reglas:
                         }, websocket)
 
                     except (json.JSONDecodeError, AttributeError):
+                        _ws_fallback = response_text.strip()
+                        if garden_name and garden_name.lower() not in _ws_fallback.lower():
+                            _ws_fallback = f"{garden_name}: {_ws_fallback}"
                         await manager.send_personal({
                             "type": "chat_response",
                             "garden_id": garden_id,
                             "garden_name": garden_name,
-                            "message": response_text.strip(),
+                            "message": _ws_fallback,
                             "plants_summary": [],
                             "data": {},
                             "suggestions": [],
