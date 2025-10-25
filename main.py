@@ -6,9 +6,11 @@ import re
 from datetime import datetime
 from typing import Optional, Set
 
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from irrigation_agent.stt_service import convert_audio_to_text
 
 # Configure logging for Cloud Run
 logging.basicConfig(
@@ -833,7 +835,7 @@ async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
 
 
 @app.post("/api/chat")
-async def api_chat(request: ChatRequest):
+async def api_chat(request: ChatRequest | file: UploadFile = None):
     """Chat with the intelligent irrigation agent."""
     if not TOOLS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Agent tools not available")
