@@ -80,6 +80,16 @@ class ChatRequest(BaseModel):
     history: Optional[list] = None
 
 
+class ElevenSimulateRequest(BaseModel):
+    text: str
+    history: Optional[list] = None  # [{"role": "user|assistant", "content": "..."}]
+    agent_id: Optional[str] = None
+    tts: Optional[bool] = False
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    output_format: Optional[str] = None
+
+
 class CropQuery(BaseModel):
     commodity: str
     year: int
@@ -1041,6 +1051,56 @@ async def api_audio_stt(file: UploadFile = File(...)):
         logger.error(f"Error in STT: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/agents/eleven/simulate")
+async def api_eleven_simulate(req: ElevenSimulateRequest):
+    """Text-mode conversation via ElevenLabs Agents (simulate-conversations).
+
+    Optional: if req.tts is true, convert agent's reply to audio and include base64.
+    """
+    try:
+        from irrigation_agent.service.eleven_agents_service import simulate_conversation
+
+        result = simulate_conversation(
+            text=req.text,
+            history=req.history,
+            agent_id=req.agent_id,
+        )
+        if result.get("status") != "success":
+            raise HTTPException(status_code=400, detail=result.get("error", "simulate failed"))
+
+        response_text = (result.get("text") or "").strip()
+        out: dict = {
+            "status": "success",
+            "text": response_text,
+            "agent_id": result.get("agent_id"),
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        if req.tts and response_text:
+            try:
+                from irrigation_agent.service.tts_service import convert_text_to_speech
+                audio_b64 = convert_text_to_speech(
+                    response_text,
+                    voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                    model_id=req.model_id or "eleven_multilingual_v2",
+                    output_format=req.output_format or "mp3_44100_128",
+                )
+                if audio_b64:
+                    out.update({
+                        "audio_base64": audio_b64,
+                        "voice_id": req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
+                        "format": req.output_format or "mp3_44100_128",
+                    })
+            except Exception as tts_err:
+                logger.warning(f"TTS optional step failed: {tts_err}")
+
+        return out
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Eleven simulate endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/gardens/{garden_id}/chat")
 async def api_garden_chat(garden_id: str, request: ChatRequest):
