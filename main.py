@@ -25,6 +25,8 @@ app = FastAPI(
 )
 
 # Configure CORS (parametrized by env)
+import os
+import random
 allowed_origins_env = os.getenv("ALLOWED_ORIGINS")
 if allowed_origins_env:
     allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
@@ -1015,13 +1017,14 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
         from irrigation_agent.tools import get_garden_status
 
         client = get_genai_client()
-
         garden_data = get_garden_status(garden_id)
         if garden_data.get("status") != "success":
             raise HTTPException(status_code=404, detail=garden_data.get("error", "Garden not found"))
-
         personality = garden_data.get("personality", "neutral")
         garden_name = garden_data.get("garden_name", garden_id)
+
+        # Simulate a small data tick on each chat in simulation mode
+        _maybe_simulate_garden(garden_id)
 
         context_prompt = f"""Eres GrowthAI, asistente de riego para el jardin '{garden_name}'.
 
@@ -1091,6 +1094,21 @@ Reglas:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _maybe_simulate_garden(garden_id: str) -> None:
+    """If in simulation mode, vary plant moisture slightly to simulate updates."""
+    try:
+        if os.getenv('USE_SIMULATION', 'false').lower() != 'true':
+            return
+        from irrigation_agent.service.firebase_service import simulator
+        plants = simulator.get_garden_plants(garden_id)
+        for pid, pdata in plants.items():
+            current = pdata.get('current_moisture') or 50
+            new = max(0, min(100, int(current) + random.randint(-3, 3)))
+            simulator.update_garden_plant_moisture(garden_id, pid, new)
+    except Exception as e:
+        logger.warning(f"Simulation update failed for garden {garden_id}: {e}")
+
+
 @app.post("/api/chat")
 async def api_chat(request: ChatRequest):
     """Deprecated: use garden-scoped chat endpoint."""
@@ -1157,7 +1175,6 @@ async def websocket_endpoint(websocket: WebSocket):
                     from irrigation_agent.tools import get_garden_status
 
                     client = get_genai_client()
-
                     garden_data = get_garden_status(garden_id)
                     if garden_data.get("status") != "success":
                         await manager.send_personal({
@@ -1283,4 +1300,7 @@ if __name__ == "__main__":
     # Start server
     logger.info(f"Starting Intelligent Irrigation Agent API on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+
 

@@ -45,7 +45,17 @@ steps:
       - '--max-instances=10'
       - '--min-instances=0'
       - '--port=8080'
-      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID,GOOGLE_CLOUD_LOCATION=us-east1,USE_SIMULATION=true,USE_FIRESTORE=true,GOOGLE_GENAI_USE_VERTEXAI=true,AI_MODEL=gemini-2.5-pro'
+      # Set environment variables as separate flags for clarity
+      - '--set-env-vars=GOOGLE_CLOUD_PROJECT=$PROJECT_ID'
+      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=us-east1'
+      - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=true'
+      - '--set-env-vars=AI_MODEL=gemini-2.5-pro'
+      - '--set-env-vars=USE_SIMULATION=true'
+      - '--set-env-vars=USE_FIRESTORE=true'
+      # Optional: configure keys via Cloud Build substitutions (_USDA_QUICKSTATS_API_KEY, _ELEVENLABS_API_KEY)
+      # and Secret Manager in production. Uncomment when available.
+      # - '--set-env-vars=USDA_QUICKSTATS_API_KEY=${_USDA_QUICKSTATS_API_KEY}'
+      # - '--set-env-vars=ELEVENLABS_API_KEY=${_ELEVENLABS_API_KEY}'
     id: 'deploy-cloud-run'
     waitFor: ['push-latest']
 

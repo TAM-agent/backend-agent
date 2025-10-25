@@ -3,7 +3,7 @@ import re
 import threading
 from typing import Any, Optional, Tuple
 
-from .config import config
+from ..config import config
 
 _client_lock = threading.Lock()
 _client_instance = None
@@ -64,4 +64,3 @@ def extract_json_object(text: str) -> Tuple[Optional[dict], str]:
     except json.JSONDecodeError:
         pass
     return None, cleaned
-
