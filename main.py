@@ -760,7 +760,7 @@ async def api_agri_yield(
 ):
     """Get crop yield statistics from USDA Quick Stats."""
     try:
-        from irrigation_agent.servicio.agriculture_service import get_crop_yield
+from irrigation_agent.service.agriculture_service import get_crop_yield
         result = get_crop_yield(commodity, year, state)
         if result.get("status") == "error":
             raise HTTPException(status_code=400, detail=result.get("error"))
@@ -780,7 +780,7 @@ async def api_agri_area_planted(
 ):
     """Get area planted statistics from USDA Quick Stats."""
     try:
-        from irrigation_agent.servicio.agriculture_service import get_area_planted
+        from irrigation_agent.service.agriculture_service import get_area_planted
         result = get_area_planted(commodity, year, state)
         if result.get("status") == "error":
             raise HTTPException(status_code=400, detail=result.get("error"))
@@ -803,7 +803,7 @@ async def api_agri_search(
 ):
     """Generic USDA Quick Stats search with common filters."""
     try:
-        from irrigation_agent.servicio.agriculture_service import search_quickstats
+        from irrigation_agent.service.agriculture_service import search_quickstats
         result = search_quickstats(
             commodity_desc=commodity,
             year=year,
@@ -833,7 +833,7 @@ async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
 
     try:
         from irrigation_agent.tools import get_garden_status, get_garden_weather
-        from irrigation_agent.servicio.agriculture_service import get_crop_yield, get_area_planted
+        from irrigation_agent.service.agriculture_service import get_crop_yield, get_area_planted
         from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
 
         client = get_genai_client()
@@ -940,7 +940,7 @@ async def api_audio_tts(req: TTSRequest):
     try:
         # Prefer SDK service from fabian branch if available
         try:
-            from irrigation_agent.servicio.tts_service import convert_text_to_speech
+            from irrigation_agent.service.tts_service import convert_text_to_speech
             audio_b64 = convert_text_to_speech(
                 req.text,
                 voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
@@ -958,7 +958,7 @@ async def api_audio_tts(req: TTSRequest):
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception:
-            from irrigation_agent.servicio.audio_service import tts_elevenlabs
+            from irrigation_agent.service.audio_service import tts_elevenlabs
             result = tts_elevenlabs(
                 text=req.text,
                 voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
@@ -982,7 +982,7 @@ async def api_audio_stt(file: UploadFile = File(...)):
         file_bytes = await file.read()
         # Prefer SDK service if available
         try:
-            from irrigation_agent.servicio.stt_service import convert_audio_to_text
+            from irrigation_agent.service.stt_service import convert_audio_to_text
             text = convert_audio_to_text(file_bytes)
             if not text:
                 raise ValueError("STT failed")
@@ -992,7 +992,7 @@ async def api_audio_stt(file: UploadFile = File(...)):
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception:
-            from irrigation_agent.servicio.audio_service import stt_elevenlabs
+            from irrigation_agent.service.audio_service import stt_elevenlabs
             result = stt_elevenlabs(file_bytes)
             if result.get("status") == "error":
                 raise HTTPException(status_code=400, detail=result.get("error"))
