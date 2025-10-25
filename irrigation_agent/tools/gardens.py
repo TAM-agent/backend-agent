@@ -8,9 +8,16 @@ from irrigation_agent.service.weather_service import (
 )
 
 
+def _sim_enabled() -> bool:
+    try:
+        return bool(simulator and (getattr(simulator, 'use_firestore', False) or USE_SIMULATION))
+    except Exception:
+        return USE_SIMULATION
+
+
 def get_all_gardens() -> Dict[str, Any]:
     try:
-        if USE_SIMULATION:
+        if _sim_enabled():
             gardens = simulator.get_all_gardens()
             return {
                 "gardens": gardens,
@@ -39,7 +46,7 @@ def get_all_gardens() -> Dict[str, Any]:
 
 def get_garden_status(garden_id: str) -> Dict[str, Any]:
     try:
-        if USE_SIMULATION:
+        if _sim_enabled():
             garden = simulator.get_garden(garden_id)
             if not garden:
                 return {
@@ -101,7 +108,7 @@ def get_garden_status(garden_id: str) -> Dict[str, Any]:
 
 def get_all_gardens_status() -> Dict[str, Any]:
     try:
-        if USE_SIMULATION:
+        if _sim_enabled():
             gardens_data = simulator.get_all_gardens()
             all_gardens_status = {}
             total_critical = 0
@@ -138,7 +145,7 @@ def get_all_gardens_status() -> Dict[str, Any]:
 
 def get_plant_in_garden(garden_id: str, plant_id: str) -> Dict[str, Any]:
     try:
-        if USE_SIMULATION:
+        if _sim_enabled():
             plant = simulator.get_garden_plant(garden_id, plant_id)
             if not plant:
                 return {"status": "error", "error": "Plant not found", "timestamp": datetime.now().isoformat()}
