@@ -301,8 +301,9 @@ def seed_garden(
     personality: str,
     latitude: float,
     longitude: float,
-    plant_count: int = 3,
+    plant_count: int = 0,
     base_moisture: int = 50,
+    history: Optional[list] = None,
 ) -> dict:
     """Create or update a garden with a set of plants for simulation/testing.
 
@@ -310,50 +311,98 @@ def seed_garden(
     """
     try:
         plant_count = max(1, min(plant_count, 50))
-        plants = {}
-        for i in range(1, plant_count + 1):
-            pid = f"plant{i}"
-            plants[pid] = {
-                'id': pid,
-                'name': pid,
-                'current_moisture': max(0, min(100, int(base_moisture))),
-                'last_updated': datetime.now().isoformat(),
-            }
-
         if simulator.use_firestore and simulator.db:
-            # Upsert garden
-            simulator.db.collection('gardens').document(garden_id).set({
-                'name': name,
-                'personality': personality,
-                'location': name,
-                'latitude': latitude,
-                'longitude': longitude,
-                'created_at': datetime.now(),
-            })
-            # Upsert plants
-            for pid, pdata in plants.items():
-                simulator.db.collection('gardens').document(garden_id)\
-                    .collection('plants').document(pid).set(pdata)
+            db = simulator.db
+            garden_ref = db.collection('gardens').document(garden_id)
+            garden_snap = garden_ref.get()
+
+            # Only create garden metadata if it doesn't exist; avoid overwriting
+            if not garden_snap.exists:
+                garden_ref.set({
+                    'name': name,
+                    'personality': personality,
+                    'location': name,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                    'created_at': datetime.now(),
+                })
+            else:
+                # If history is provided, append/merge it
+                if history:
+                    existing = garden_snap.to_dict().get('history', [])
+                    try:
+                        new_history = (existing or []) + list(history)
+                    except Exception:
+                        new_history = existing or []
+                    garden_ref.update({'history': new_history})
+
+            # Add plants without overwriting existing ones
+            plants_ref = garden_ref.collection('plants')
+            existing_ids = set([doc.id for doc in plants_ref.stream()])
+
+            # Determine next numeric suffix for new plants
+            next_idx = 1
+            while f"plant{next_idx}" in existing_ids:
+                next_idx += 1
+
+            plants_created = 0
+            for offset in range(plant_count):
+                pid = f"plant{next_idx + offset}"
+                if pid in existing_ids:
+                    continue
+                pdata = {
+                    'id': pid,
+                    'name': pid,
+                    'current_moisture': max(0, min(100, int(base_moisture))),
+                    'last_updated': datetime.now().isoformat(),
+                }
+                if history:
+                    pdata['history'] = history
+                plants_ref.document(pid).set(pdata, merge=True)
+                plants_created += 1
         else:
             # Local JSON fallback
             data = simulator._load_local_data()
             data.setdefault('gardens', {})
-            data['gardens'][garden_id] = {
-                'name': name,
-                'personality': personality,
-                'location': name,
-                'latitude': latitude,
-                'longitude': longitude,
-            }
+            if garden_id not in data['gardens']:
+                data['gardens'][garden_id] = {
+                    'name': name,
+                    'personality': personality,
+                    'location': name,
+                    'latitude': latitude,
+                    'longitude': longitude,
+                }
+            else:
+                if history:
+                    existing_hist = data['gardens'][garden_id].get('history', [])
+                    data['gardens'][garden_id]['history'] = (existing_hist or []) + list(history)
             data.setdefault('garden_plants', {})
-            data['garden_plants'][garden_id] = plants
+            existing = data['garden_plants'].get(garden_id, {})
+            # Determine next index
+            idx = 1
+            while f"plant{idx}" in existing:
+                idx += 1
+            for offset in range(plant_count):
+                pid = f"plant{idx + offset}"
+                if pid in existing:
+                    continue
+                pdata = {
+                    'id': pid,
+                    'name': pid,
+                    'current_moisture': max(0, min(100, int(base_moisture))),
+                    'last_updated': datetime.now().isoformat(),
+                }
+                if history:
+                    pdata['history'] = history
+                existing[pid] = pdata
+            data['garden_plants'][garden_id] = existing
             with open(simulator.local_data_file, 'w') as f:
                 json.dump(data, f, indent=2)
 
         return {
             'status': 'success',
             'garden_id': garden_id,
-            'plants_created': plant_count,
+            'plants_created': plant_count if not (simulator.use_firestore and simulator.db) else plants_created,
             'timestamp': datetime.now().isoformat(),
         }
     except Exception as e:

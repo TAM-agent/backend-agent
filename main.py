@@ -99,8 +99,10 @@ class SeedGardenRequest(BaseModel):
     personality: str = "neutral"
     latitude: float = 0.0
     longitude: float = 0.0
-    plant_count: int = 3
+    plant_count: int = 0
     base_moisture: int = 50
+    # Optional sensor history payload to attach at garden level
+    history: Optional[list] = None
 
 
 class TTSRequest(BaseModel):
@@ -953,6 +955,7 @@ async def api_seed_garden(garden_id: str, req: SeedGardenRequest):
             longitude=req.longitude,
             plant_count=req.plant_count,
             base_moisture=req.base_moisture,
+            history=req.history,
         )
         if result.get("status") != "success":
             raise HTTPException(status_code=400, detail=result.get("error", "Seed failed"))
