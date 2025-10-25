@@ -2,6 +2,7 @@
 google-cloud-aiplatform[adk,agent-engines]>=1.117.0
 google-genai>=1.9.0
 google-adk>=1.0.0
+google-cloud-firestore>=2.14.0
 pydantic>=2.10.6
 python-dotenv>=1.0.1
 requests>=2.31.0
