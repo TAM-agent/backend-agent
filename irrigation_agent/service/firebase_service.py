@@ -412,8 +412,8 @@ def seed_garden(
                     garden_ref.update({'history': new_history})
 
             # Write time-based garden data snapshot under 'gardenData/{dateId}'
-            # Use hourly timestamp to avoid overwriting multiple seeds in same day
-            date_id = datetime.now().strftime('%Y-%m-%dT%H')
+            # Use minute-level timestamp to avoid overwriting within the same hour
+            date_id = datetime.now().strftime('%Y-%m-%dT%H%M')
             data_ref = garden_ref.collection('gardenData').document(date_id)
             snapshot = {
                 'created_at': datetime.now(),
@@ -451,8 +451,8 @@ def seed_garden(
                     existing_hist = data['gardens'][garden_id].get('history', [])
                     data['gardens'][garden_id]['history'] = (existing_hist or []) + list(history)
             data.setdefault('garden_data', {})
-            # Use hourly timestamp to avoid overwriting multiple seeds in same day
-            date_id = datetime.now().strftime('%Y-%m-%dT%H')
+            # Use minute-level timestamp to avoid overwriting within the same hour
+            date_id = datetime.now().strftime('%Y-%m-%dT%H%M')
             garden_data = data['garden_data'].get(garden_id, {})
             snapshot = {
                 'created_at': datetime.now().isoformat(),
