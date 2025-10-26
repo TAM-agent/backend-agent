@@ -4,6 +4,7 @@ import asyncio
 import json
 import re
 import random
+from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, Set, Dict
 
@@ -18,11 +19,23 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Lifespan context manager for startup and shutdown events."""
+    task = asyncio.create_task(monitor_system())
+    logger.info("Background monitoring task started")
+    yield
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        logger.info("Background monitoring task stopped")
+
 app = FastAPI(
     title="Intelligent Irrigation Agent API",
     description="Multi-agent irrigation system using Google Gemini ADK",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -62,6 +75,10 @@ except Exception as e:
     logger.warning(f"Could not load irrigation agent tools: {e}")
     logger.info("API will run in limited mode without irrigation tools")
 
+# Audio configuration constants
+DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"
+DEFAULT_TTS_MODEL = "eleven_multilingual_v2"
+DEFAULT_AUDIO_FORMAT = "mp3_44100_128"
 
 
 class IrrigationRequest(BaseModel):
@@ -416,13 +433,6 @@ async def monitor_system():
         except Exception as e:
             logger.error(f"Error in monitoring task: {e}")
             await asyncio.sleep(60)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Start background monitoring task when application starts."""
-    asyncio.create_task(monitor_system())
-    logger.info("Background monitoring task started")
 
 
 @app.get("/")
@@ -952,27 +962,27 @@ async def api_audio_tts(req: TTSRequest):
             from irrigation_agent.service.tts_service import convert_text_to_speech
             audio_b64 = convert_text_to_speech(
                 req.text,
-                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                model_id=req.model_id or "eleven_multilingual_v2",
-                output_format=req.output_format or "mp3_44100_128",
+                voice_id=req.voice_id or DEFAULT_VOICE_ID,
+                model_id=req.model_id or DEFAULT_TTS_MODEL,
+                output_format=req.output_format or DEFAULT_AUDIO_FORMAT,
             )
             if not audio_b64:
                 raise ValueError("TTS conversion failed")
             return {
                 "status": "success",
                 "audio_base64": audio_b64,
-                "voice_id": req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                "model_id": req.model_id or "eleven_multilingual_v2",
-                "format": req.output_format or "mp3_44100_128",
+                "voice_id": req.voice_id or DEFAULT_VOICE_ID,
+                "model_id": req.model_id or DEFAULT_TTS_MODEL,
+                "format": req.output_format or DEFAULT_AUDIO_FORMAT,
                 "timestamp": datetime.now().isoformat(),
             }
-        except Exception:
+        except (ImportError, AttributeError, ValueError):
             from irrigation_agent.service.audio_service import tts_elevenlabs
             result = tts_elevenlabs(
                 text=req.text,
-                voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                model_id=req.model_id or "eleven_multilingual_v2",
-                output_format=req.output_format or "mp3_44100_128",
+                voice_id=req.voice_id or DEFAULT_VOICE_ID,
+                model_id=req.model_id or DEFAULT_TTS_MODEL,
+                output_format=req.output_format or DEFAULT_AUDIO_FORMAT,
             )
             if result.get("status") == "error":
                 raise HTTPException(status_code=400, detail=result.get("error"))
@@ -1000,7 +1010,7 @@ async def api_audio_stt(file: UploadFile = File(...)):
                 "text": text,
                 "timestamp": datetime.now().isoformat(),
             }
-        except Exception:
+        except (ImportError, AttributeError, ValueError):
             from irrigation_agent.service.audio_service import stt_elevenlabs
             result = stt_elevenlabs(file_bytes)
             if result.get("status") == "error":
@@ -1017,7 +1027,7 @@ async def api_audio_stt(file: UploadFile = File(...)):
 async def api_voice_garden_talk(
     garden_id: str,
     request: Request,
-    file: UploadFile | None = File(None),
+    file: Optional[UploadFile] = File(None),
     text: Optional[str] = Form(None),
     tts: Optional[bool] = Form(True),
     voice_id: Optional[str] = Form(None),
@@ -1091,15 +1101,15 @@ async def api_voice_garden_talk(
                 from irrigation_agent.service.tts_service import convert_text_to_speech
                 audio_b64 = convert_text_to_speech(
                     response_text,
-                    voice_id=voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                    model_id=model_id or "eleven_multilingual_v2",
-                    output_format=output_format or "mp3_44100_128",
+                    voice_id=voice_id or DEFAULT_VOICE_ID,
+                    model_id=model_id or DEFAULT_TTS_MODEL,
+                    output_format=output_format or DEFAULT_AUDIO_FORMAT,
                 )
                 if audio_b64:
                     out.update({
                         "audio_base64": audio_b64,
-                        "voice_id": voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                        "format": output_format or "mp3_44100_128",
+                        "voice_id": voice_id or DEFAULT_VOICE_ID,
+                        "format": output_format or DEFAULT_AUDIO_FORMAT,
                     })
             except Exception as tts_err:
                 logger.warning(f"TTS step failed: {tts_err}")
