@@ -12,6 +12,13 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from prompts import (
+    AGENT_DECISION_PROMPT,
+    GARDEN_CHAT_PROMPT,
+    GARDEN_ADVISOR_PROMPT,
+    WEBSOCKET_CHAT_PROMPT,
+)
+
 # Configure logging for Cloud Run
 logging.basicConfig(
     level=logging.INFO,
@@ -234,34 +241,13 @@ async def agent_analyze_and_act(condition: str, data: dict) -> dict:
         }
         style_instruction = personality_styles.get(personality, personality_styles["neutral"])
 
-        # Build context prompt for the agent
-        prompt = f"""Eres GrowthAI, un agente inteligente de irrigacion para el jardin '{garden_name}'.
-
-PERSONALIDAD DEL JARDIN: {personality}
-ESTILO DE COMUNICACION: {style_instruction}
-
-SITUACION ACTUAL:
-{condition}
-
-DATOS DEL SISTEMA:
-{data}
-
-Analiza la situacion y decide:
-1. Â¿Que accion inmediata se debe tomar? (regar, no hacer nada, ajustar configuracion, etc.)
-2. Â¿Por que es necesaria esta accion?
-3. Â¿Cuales son los parametros especificos? (duracion del riego, cantidad de agua, etc.)
-
-IMPORTANTE: Tu explanation debe reflejar la personalidad '{personality}' del jardin.
-
-Responde en formato JSON con esta estructura:
-{{
-    "decision": "regar|esperar|alerta|ajustar",
-    "plant_id": "ID de la planta afectada",
-    "garden_id": "ID del jardin",
-    "action_params": {{"duration": 30, "reason": "..."}},
-    "explanation": "Explicacion clara y concisa para el usuario en tono {personality}",
-    "priority": "critical|high|medium|low"
-}}"""
+        prompt = AGENT_DECISION_PROMPT.format(
+            garden_name=garden_name,
+            personality=personality,
+            style_instruction=style_instruction,
+            condition=condition,
+            data=data
+        )
 
         response = client.models.generate_content(
             model=config.worker_model,
@@ -848,42 +834,19 @@ async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
         personality = garden_data.get("personality", "neutral")
         garden_name = garden_data.get("garden_name", garden_id)
 
-        context_prompt = f"""Eres GrowthAI, asesor inteligente de riego para el jardin '{garden_name}'.
-
-PERSONALIDAD: {personality}
-
-ESTADO DEL JARDIN (incluye plantas):
-{garden_data}
-
-ESTADISTICAS AGRICOLAS (USDA Quick Stats):
-- Commodity: {req.commodity}  Year: {year}  State: {req.state or '-'}
-- YIELD: {usda_yield}
-- AREA PLANTED: {usda_area}
-
-CLIMA (si disponible):
-{weather}
-
-MENSAJE DEL USUARIO (opcional):
-{req.user_message or ''}
-
-IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
-{{
-  "message": "Recomendacion en texto natural",
-  "irrigation_action": "irrigate_now|irrigate_soon|monitor|skip",
-  "params": {{"duration": 0}},
-  "considered": {{
-     "usda": {{"commodity": "{req.commodity}", "year": {year}, "state": "{req.state or ''}"}},
-     "garden": {{"plants": "resumen"}},
-     "weather": {{"available": {str(weather.get('status') == 'success').lower()} }}
-  }},
-  "priority": "info|warning|alert"
-}}
-
-Reglas:
-- No converses con plantas individuales. Habla a nivel de jardin.
-- Explica brevemente como las estadisticas USDA y el clima influyen en la recomendacion (tendencias macro, etapa del cultivo, lluvia/temperatura). 
-- Responde en espaÃ±ol.
-"""
+        context_prompt = GARDEN_ADVISOR_PROMPT.format(
+            garden_name=garden_name,
+            personality=personality,
+            garden_data=garden_data,
+            commodity=req.commodity,
+            year=year,
+            state=req.state or '-',
+            usda_yield=usda_yield,
+            usda_area=usda_area,
+            weather=weather,
+            user_message=req.user_message or '',
+            weather_available=str(weather.get('status') == 'success').lower()
+        )
 
         response = client.models.generate_content(
             model=config.worker_model,
@@ -1189,40 +1152,14 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
         except Exception as _hist_err:
             logger.warning(f"Failed to process chat history: {_hist_err}")
 
-        # Override prompt to the new garden persona and rules
-        context_prompt = f"""Eres un {garden_type} con vida llamado '{garden_name}'.
-
-PERSONALIDAD: {personality}
-
-ESTADO DEL JARDIN (incluye plantas):
-{garden_data}
-
-HISTORIAL RECIENTE (max 10):
-{history_text or 'N/A'}
-
-MENSAJE DEL USUARIO:
-{request.message}
-
-IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
-{{
-    "message": "Respuesta en texto natural (sin incluir {garden_name})",
-    "plants_summary": [
-        {{"plant_id": "id", "name": "nombre", "moisture": 0, "health": "good|fair|poor"}}
-    ],
-    "data": {{"clave": "valor"}},
-    "suggestions": ["sugerencia1", "sugerencia2"],
-    "priority": "info|warning|alert"
-}}
-
-Reglas:
-- Usa el historial para mantener el contexto y continuidad, evita repetir lo ya dicho.
-- Si te preguntan como estas describe a detalle el estado del jardin inclyendo suggestions and plants summary.
-- No converses con plantas individuales. Habla a nivel de jardin.
-- Usa los datos de plantas solo como resumen/informacion.
-- Responde en español.
-- Si el mensaje no puede ser respondido con la informacion del jardin, responde honestamente que no sabes.
-- Siempre incluye una pregunta al final para invitar al usuario a saber mas de su jardin (tu).
-"""
+        context_prompt = GARDEN_CHAT_PROMPT.format(
+            garden_type=garden_type,
+            garden_name=garden_name,
+            personality=personality,
+            garden_data=garden_data,
+            history_text=history_text or 'N/A',
+            message=request.message
+        )
 
         # Determine session_id (reuse if provided)
         import uuid as _uuid
@@ -1384,32 +1321,12 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
                     personality = garden_data.get("personality", "neutral")
                     garden_name = garden_data.get("garden_name", garden_id)
 
-                    context_prompt = f"""Eres GrowthAI, asistente de riego para el jardin '{garden_name}'.
-
-PERSONALIDAD: {personality}
-
-ESTADO DEL JARDIN (incluye plantas):
-{garden_data}
-
-MENSAJE DEL USUARIO:
-{user_message}
-
-IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
-{{
-    "message": "Respuesta en texto natural",
-    "plants_summary": [
-        {{"plant_id": "id", "name": "nombre", "moisture": 0, "health": "good|fair|poor"}}
-    ],
-    "data": {{"clave": "valor"}},
-    "suggestions": ["sugerencia1", "sugerencia2"],
-    "priority": "info|warning|alert"
-}}
-
-Reglas:
-- No converses con plantas individuales. Habla a nivel de jardin.
-- Usa los datos de plantas solo como resumen/informacion.
-- Responde en espaÃ±ol.
-"""
+                    context_prompt = WEBSOCKET_CHAT_PROMPT.format(
+                        garden_name=garden_name,
+                        personality=personality,
+                        garden_data=garden_data,
+                        user_message=user_message
+                    )
 
                     response = client.models.generate_content(
                         model=config.worker_model,
