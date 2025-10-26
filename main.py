@@ -78,16 +78,10 @@ class NotificationRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     history: Optional[list] = None
+    session_id: Optional[str] = None
 
 
-class ElevenSimulateRequest(BaseModel):
-    text: str
-    history: Optional[list] = None  # [{"role": "user|assistant", "content": "..."}]
-    agent_id: Optional[str] = None
-    tts: Optional[bool] = False
-    voice_id: Optional[str] = None
-    model_id: Optional[str] = None
-    output_format: Optional[str] = None
+    
 
 
 class CropQuery(BaseModel):
@@ -1150,56 +1144,35 @@ async def api_voice_garden_talk(
         logger.error(f"Error in unified voice talk: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/agents/eleven/simulate")
-async def api_eleven_simulate(req: ElevenSimulateRequest):
-    """Text-mode conversation via ElevenLabs Agents (simulate-conversations).
 
-    Optional: if req.tts is true, convert agent's reply to audio and include base64.
-    """
+@app.post("/api/gardens/{garden_id}/images/analyze")
+async def api_garden_image_analyze(garden_id: str, file: UploadFile = File(...)):
+    """Upload an image and return plant health analysis (disease, causes, cures)."""
     try:
-        from irrigation_agent.service.eleven_agents_service import simulate_conversation
+        data = await file.read()
+        content_type = file.content_type or "image/jpeg"
+        from irrigation_agent.service.image_service import analyze_plant_image, store_image_record
 
-        result = simulate_conversation(
-            text=req.text,
-            history=req.history,
-            agent_id=req.agent_id,
-        )
-        if result.get("status") != "success":
-            raise HTTPException(status_code=400, detail=result.get("error", "simulate failed"))
+        analysis = analyze_plant_image(data, content_type)
+        if analysis.get("status") != "success":
+            raise HTTPException(status_code=400, detail=analysis.get("error", "analysis failed"))
 
-        response_text = (result.get("text") or "").strip()
-        out: dict = {
+        store = store_image_record(garden_id, data, content_type, analysis.get("analysis", {}))
+        if store.get("status") != "success":
+            logger.warning(f"Image stored locally or failed: {store}")
+
+        return {
             "status": "success",
-            "text": response_text,
-            "agent_id": result.get("agent_id"),
+            "garden_id": garden_id,
+            "doc_id": store.get("doc_id"),
+            "analysis": analysis.get("analysis"),
             "timestamp": datetime.now().isoformat(),
         }
-
-        if req.tts and response_text:
-            try:
-                from irrigation_agent.service.tts_service import convert_text_to_speech
-                audio_b64 = convert_text_to_speech(
-                    response_text,
-                    voice_id=req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                    model_id=req.model_id or "eleven_multilingual_v2",
-                    output_format=req.output_format or "mp3_44100_128",
-                )
-                if audio_b64:
-                    out.update({
-                        "audio_base64": audio_b64,
-                        "voice_id": req.voice_id or "JBFqnCBsd6RMkjVDRZzb",
-                        "format": req.output_format or "mp3_44100_128",
-                    })
-            except Exception as tts_err:
-                logger.warning(f"TTS optional step failed: {tts_err}")
-
-        return out
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in Eleven simulate endpoint: {e}")
+        logger.error(f"Error analyzing image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/gardens/{garden_id}/chat")
 async def api_garden_chat(garden_id: str, request: ChatRequest):
     """Chat del asistente a nivel de jardin (incluye info de plantas como contexto)."""
@@ -1275,10 +1248,14 @@ Reglas:
 - Siempre incluye una pregunta al final para invitar al usuario a saber mas de su jardin (tu).
 """
 
+        # Determine session_id (reuse if provided)
+        import uuid as _uuid
+        session_id = request.session_id or str(_uuid.uuid4())
+
         # Log user turn into sessions (best-effort)
         try:
             from irrigation_agent.service.firebase_service import add_session_message
-            add_session_message(garden_id, "user", str(request.message), {"garden_name": garden_name})
+            add_session_message(garden_id, "user", str(request.message), {"garden_name": garden_name}, session_id=session_id)
         except Exception:
             pass
 
@@ -1324,12 +1301,13 @@ Reglas:
             _msg = str(response_data.get("message", response_text)).strip()
             try:
                 from irrigation_agent.service.firebase_service import add_session_message
-                add_session_message(garden_id, "assistant", _msg, {"garden_name": garden_name})
+                add_session_message(garden_id, "assistant", _msg, {"garden_name": garden_name}, session_id=session_id)
             except Exception:
                 pass
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
+                "session_id": session_id,
                 "message": _msg,
                 "plants_summary": response_data.get("plants_summary", []),
                 "data": response_data.get("data", {}),
@@ -1341,12 +1319,13 @@ Reglas:
             _fallback_msg = response_text.strip()
             try:
                 from irrigation_agent.service.firebase_service import add_session_message
-                add_session_message(garden_id, "assistant", _fallback_msg, {"garden_name": garden_name})
+                add_session_message(garden_id, "assistant", _fallback_msg, {"garden_name": garden_name}, session_id=session_id)
             except Exception:
                 pass
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
+                "session_id": session_id,
                 "message": _fallback_msg,
                 "plants_summary": [],
                 "data": {},
@@ -1578,3 +1557,12 @@ if __name__ == "__main__":
 
 
 
+# Chat session retrieval
+@app.get("/api/chat/{session_id}")
+async def api_get_chat_session(session_id: str):
+    try:
+        from irrigation_agent.service.firebase_service import get_session_messages
+        return get_session_messages(session_id)
+    except Exception as e:
+        logger.error(f"Error retrieving session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

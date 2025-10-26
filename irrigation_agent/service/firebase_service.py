@@ -300,6 +300,7 @@ def add_session_message(
     role: str,
     content: str,
     extra: Optional[Dict[str, Any]] = None,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Store a single chat turn into the 'sesiones' collection.
 
@@ -314,6 +315,8 @@ def add_session_message(
             'content': content,
             'timestamp': ts,
         }
+        if session_id:
+            payload['session_id'] = session_id
         if extra and isinstance(extra, dict):
             payload.update(extra)
 
@@ -336,6 +339,37 @@ def add_session_message(
         logger.error(f"Error adding session message: {e}")
         return {'status': 'error', 'error': str(e)}
 
+
+def get_session_messages(session_id: str) -> Dict[str, Any]:
+    """Fetch ordered messages for a given session_id from 'sesiones'."""
+    try:
+        results: list[Dict[str, Any]] = []
+        if simulator.use_firestore and simulator.db:
+            q = simulator.db.collection('sesiones').where('session_id', '==', session_id).order_by('timestamp')
+            docs = q.stream()
+            for d in docs:
+                item = d.to_dict()
+                # Ensure ISO strings
+                if 'timestamp' in item and hasattr(item['timestamp'], 'isoformat'):
+                    item['timestamp'] = item['timestamp'].isoformat()
+                results.append(item)
+        else:
+            data = simulator._load_local_data()
+            for m in data.get('sessions', []) or []:
+                if m.get('session_id') == session_id:
+                    results.append(m)
+            results.sort(key=lambda x: x.get('timestamp', ''))
+        return {
+            'status': 'success',
+            'session_id': session_id,
+            'messages': results,
+            'count': len(results),
+            'timestamp': datetime.now().isoformat(),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching session {session_id}: {e}")
+        return {'status': 'error', 'error': str(e), 'session_id': session_id}
+
 def seed_garden(
     garden_id: str,
     name: str,
@@ -351,7 +385,7 @@ def seed_garden(
     Works with Firestore when available, or updates local JSON fallback.
     """
     try:
-        plant_count = max(1, min(plant_count, 50))
+        plant_count = max(0, min(plant_count, 50))
         if simulator.use_firestore and simulator.db:
             db = simulator.db
             garden_ref = db.collection('gardens').document(garden_id)
@@ -377,30 +411,28 @@ def seed_garden(
                         new_history = existing or []
                     garden_ref.update({'history': new_history})
 
-            # Add plants without overwriting existing ones
-            plants_ref = garden_ref.collection('plants')
-            existing_ids = set([doc.id for doc in plants_ref.stream()])
-
-            # Determine next numeric suffix for new plants
-            next_idx = 1
-            while f"plant{next_idx}" in existing_ids:
-                next_idx += 1
-
-            plants_created = 0
-            for offset in range(plant_count):
-                pid = f"plant{next_idx + offset}"
-                if pid in existing_ids:
-                    continue
-                pdata = {
-                    'id': pid,
-                    'name': pid,
-                    'current_moisture': max(0, min(100, int(base_moisture))),
-                    'last_updated': datetime.now().isoformat(),
-                }
-                if history:
-                    pdata['history'] = history
-                plants_ref.document(pid).set(pdata, merge=True)
-                plants_created += 1
+            # Write time-based garden data snapshot under 'gardenData/{dateId}'
+            date_id = datetime.now().strftime('%Y-%m-%d')
+            data_ref = garden_ref.collection('gardenData').document(date_id)
+            snapshot = {
+                'created_at': datetime.now(),
+                'base_moisture': max(0, min(100, int(base_moisture))),
+            }
+            if history:
+                snapshot['history'] = history
+            if plant_count > 0:
+                plants_map: Dict[str, Any] = {}
+                for i in range(1, plant_count + 1):
+                    pid = f'plant{i}'
+                    plants_map[pid] = {
+                        'id': pid,
+                        'name': pid,
+                        'current_moisture': max(0, min(100, int(base_moisture))),
+                        'last_updated': datetime.now().isoformat(),
+                    }
+                snapshot['plants'] = plants_map
+            data_ref.set(snapshot, merge=True)
+            entry_id = date_id
         else:
             # Local JSON fallback
             data = simulator._load_local_data()
@@ -417,33 +449,37 @@ def seed_garden(
                 if history:
                     existing_hist = data['gardens'][garden_id].get('history', [])
                     data['gardens'][garden_id]['history'] = (existing_hist or []) + list(history)
-            data.setdefault('garden_plants', {})
-            existing = data['garden_plants'].get(garden_id, {})
-            # Determine next index
-            idx = 1
-            while f"plant{idx}" in existing:
-                idx += 1
-            for offset in range(plant_count):
-                pid = f"plant{idx + offset}"
-                if pid in existing:
-                    continue
-                pdata = {
-                    'id': pid,
-                    'name': pid,
-                    'current_moisture': max(0, min(100, int(base_moisture))),
-                    'last_updated': datetime.now().isoformat(),
-                }
-                if history:
-                    pdata['history'] = history
-                existing[pid] = pdata
-            data['garden_plants'][garden_id] = existing
+            data.setdefault('garden_data', {})
+            date_id = datetime.now().strftime('%Y-%m-%d')
+            garden_data = data['garden_data'].get(garden_id, {})
+            snapshot = {
+                'created_at': datetime.now().isoformat(),
+                'base_moisture': max(0, min(100, int(base_moisture))),
+            }
+            if history:
+                snapshot['history'] = history
+            if plant_count > 0:
+                plants_map = {}
+                for i in range(1, plant_count + 1):
+                    pid = f'plant{i}'
+                    plants_map[pid] = {
+                        'id': pid,
+                        'name': pid,
+                        'current_moisture': max(0, min(100, int(base_moisture))),
+                        'last_updated': datetime.now().isoformat(),
+                    }
+                snapshot['plants'] = plants_map
+            garden_data[date_id] = snapshot
+            data['garden_data'][garden_id] = garden_data
             with open(simulator.local_data_file, 'w') as f:
                 json.dump(data, f, indent=2)
+            entry_id = date_id
 
         return {
             'status': 'success',
             'garden_id': garden_id,
-            'plants_created': plant_count if not (simulator.use_firestore and simulator.db) else plants_created,
+            'collection': 'gardenData',
+            'entry_id': entry_id,
             'timestamp': datetime.now().isoformat(),
         }
     except Exception as e:
