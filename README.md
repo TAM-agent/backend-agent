@@ -91,10 +91,78 @@ GOOGLE_WEATHER_API_KEY=...
 USDA_QUICKSTATS_API_KEY=...
 ELEVENLABS_API_KEY=...
 
+# Telegram Notifications (optional)
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz1234567890
+TELEGRAM_CHAT_ID=123456789
+
 # CORS (optional)
 ALLOWED_ORIGINS=http://localhost:3000
 ALLOW_CREDENTIALS=false
 ```
+
+### Telegram Notifications Setup
+
+To receive real-time notifications from the agent:
+
+1. **Create a Telegram Bot:**
+   - Open Telegram and chat with [@BotFather](https://t.me/BotFather)
+   - Send `/newbot` and follow instructions
+   - Save the API token (format: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz1234567890`)
+
+2. **Get your Chat ID:**
+   - Option A: Chat with [@userinfobot](https://t.me/userinfobot) and send `/start`
+   - Option B: Send a message to your bot, then visit:
+     ```
+     https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates
+     ```
+     Look for `"chat":{"id":123456789}` in the JSON response
+
+3. **Configure Environment:**
+   ```env
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_CHAT_ID=your_chat_id_here
+   ```
+
+**Notification Triggers:**
+
+The system automatically sends Telegram notifications when:
+- **Critical moisture detected** (< 30%): Agent analyzes and decides irrigation action
+- **Low moisture warning** (< 45%): Alert sent before becoming critical
+- **Agent makes decisions**: Full explanation with moisture levels and reasoning
+
+Notifications include:
+- Visual moisture bar (🟥/🟨/🟩)
+- Garden and plant names
+- Current moisture percentage
+- Agent's decision and explanation
+- Timestamp
+
+Example notification:
+```
+⚠️ DECISIÓN DEL AGENTE
+
+🌱 Jardín: Mi Jardín
+🪴 Planta: Tomate Cherry
+💧 Decisión: REGAR
+
+💧 Humedad Actual: 25%
+🟥🟥🟥⬜⬜⬜⬜⬜⬜⬜ 25%
+
+📝 Explicación:
+Humedad crítica detectada. Se recomienda riego inmediato.
+
+🕐 2025-10-26 15:30:45
+```
+
+**Priority Levels:**
+- Only `high` and `critical` priority events trigger Telegram notifications by default
+- This prevents notification spam while keeping you informed of important events
+- You can modify priority thresholds in `irrigation_agent/tools/notifications.py`
+
+**Service Implementation:**
+- Rich formatting with emojis and visual bars in `irrigation_agent/service/telegram_service.py`
+- Integrated into agent decision flow (`agent_analyze_and_act()`)
+- Also works with monitoring loop (`process_garden_monitoring()`)
 
 Notes
 - With `USE_SIMULATION=true` and `USE_FIRESTORE=true`, the app reads/writes from Firestore collections (gardens, plants, system/water_tank).

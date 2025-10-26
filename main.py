@@ -290,6 +290,20 @@ async def agent_analyze_and_act(condition: str, data: dict) -> dict:
         decision["actions_taken"] = actions_taken
         decision["timestamp"] = datetime.now().isoformat()
 
+        # Send Telegram notification for agent decisions
+        try:
+            from irrigation_agent.service.telegram_service import send_agent_decision_notification
+            send_agent_decision_notification(
+                garden_name=garden_name,
+                plant_name=data.get("plant_name", decision.get("plant_id", "Unknown")),
+                decision=decision.get("decision", "unknown"),
+                explanation=decision.get("explanation", ""),
+                moisture=data.get("moisture", 0),
+                priority=decision.get("priority", "medium")
+            )
+        except Exception as telegram_err:
+            logger.warning(f"Failed to send Telegram notification: {telegram_err}")
+
         return decision
 
     except Exception as e:
@@ -370,6 +384,18 @@ async def process_garden_monitoring(garden_id: str, garden_data: dict, collect_r
             }
             if collect_results:
                 alerts.append(alert)
+
+            # Send Telegram alert for low moisture warnings
+            try:
+                from irrigation_agent.service.telegram_service import send_moisture_alert
+                send_moisture_alert(
+                    garden_name=garden_name,
+                    plant_name=plant_data.get("name", plant_id),
+                    moisture=moisture,
+                    severity="warning"
+                )
+            except Exception as telegram_err:
+                logger.warning(f"Failed to send Telegram moisture alert: {telegram_err}")
 
             await manager.broadcast({
                 "type": "alert",
