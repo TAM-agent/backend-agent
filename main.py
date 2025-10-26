@@ -1220,6 +1220,68 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
         # Simulate a small data tick on each chat in simulation mode
         _maybe_simulate_garden(garden_id)
 
+        # Build garden type and recent history text (last 10)
+        garden_type = garden_data.get("garden_type") or garden_data.get("plant_type", "unknown")
+        history_text = ""
+        try:
+            if request.history:
+                flat: list[str] = []
+                for h in request.history:
+                    if isinstance(h, str):
+                        flat.append(h)
+                    elif isinstance(h, dict) and "content" in h:
+                        flat.append(str(h.get("content")))
+                    else:
+                        flat.append(str(h))
+                recent = flat[-10:]
+                if recent:
+                    history_text = "\n".join(f"- {item}" for item in recent)
+        except Exception as _hist_err:
+            logger.warning(f"Failed to process chat history: {_hist_err}
+")
+
+        # Override prompt to the new garden persona and rules
+        context_prompt = f"""Eres un {garden_type} con vida llamado '{garden_name}'.
+
+PERSONALIDAD: {personality}
+
+ESTADO DEL JARDIN (incluye plantas):
+{garden_data}
+
+HISTORIAL RECIENTE (max 10):
+{history_text or 'N/A'}
+
+MENSAJE DEL USUARIO:
+{request.message}
+
+IMPORTANTE: Responde SIEMPRE en formato JSON con esta estructura:
+{{
+    "message": "Respuesta en texto natural (sin incluir {garden_name})",
+    "plants_summary": [
+        {{"plant_id": "id", "name": "nombre", "moisture": 0, "health": "good|fair|poor"}}
+    ],
+    "data": {{"clave": "valor"}},
+    "suggestions": ["sugerencia1", "sugerencia2"],
+    "priority": "info|warning|alert"
+}}
+
+Reglas:
+- Usa el historial para mantener el contexto y continuidad, evita repetir lo ya dicho.
+- Si te preguntan como estas describe a detalle el estado del jardin inclyendo suggestions and plants summary.
+- No converses con plantas individuales. Habla a nivel de jardin.
+- Usa los datos de plantas solo como resumen/informacion.
+- Responde en español.
+- Si el mensaje no puede ser respondido con la informacion del jardin, responde honestamente que no sabes.
+- Siempre incluye una pregunta al final para invitar al usuario a saber mas de su jardin (tu).
+"""
+
+        # Log user turn into sessions (best-effort)
+        try:
+            from irrigation_agent.service.firebase_service import add_session_message
+            add_session_message(garden_id, "user", str(request.message), {"garden_name": garden_name})
+        except Exception:
+            pass
+
         context_prompt = f"""Eres GrowthAI, asistente de riego para el jardin '{garden_name}'.
 
 PERSONALIDAD: {personality}
@@ -1260,8 +1322,11 @@ Reglas:
             if response_data is None:
                 raise json.JSONDecodeError("not json", raw_text, 0)
             _msg = str(response_data.get("message", response_text)).strip()
-            if garden_name and garden_name.lower() not in _msg.lower():
-                _msg = f"{garden_name}: {_msg}"
+            try:
+                from irrigation_agent.service.firebase_service import add_session_message
+                add_session_message(garden_id, "assistant", _msg, {"garden_name": garden_name})
+            except Exception:
+                pass
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
@@ -1274,8 +1339,11 @@ Reglas:
             }
         except json.JSONDecodeError:
             _fallback_msg = response_text.strip()
-            if garden_name and garden_name.lower() not in _fallback_msg.lower():
-                _fallback_msg = f"{garden_name}: {_fallback_msg}"
+            try:
+                from irrigation_agent.service.firebase_service import add_session_message
+                add_session_message(garden_id, "assistant", _fallback_msg, {"garden_name": garden_name})
+            except Exception:
+                pass
             return {
                 "garden_id": garden_id,
                 "garden_name": garden_name,

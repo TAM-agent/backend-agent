@@ -295,6 +295,47 @@ class FirestoreSimulator:
 simulator = FirestoreSimulator(use_firestore=os.getenv('USE_FIRESTORE', 'true').lower() == 'true')
 
 
+def add_session_message(
+    garden_id: str,
+    role: str,
+    content: str,
+    extra: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Store a single chat turn into the 'sesiones' collection.
+
+    If Firestore is available, inserts a document with auto ID.
+    Otherwise, appends to local JSON under key 'sessions'.
+    """
+    try:
+        ts = datetime.now().isoformat()
+        payload: Dict[str, Any] = {
+            'garden_id': garden_id,
+            'role': role,
+            'content': content,
+            'timestamp': ts,
+        }
+        if extra and isinstance(extra, dict):
+            payload.update(extra)
+
+        if simulator.use_firestore and simulator.db:
+            simulator.db.collection('sesiones').add(payload)
+            return {'status': 'success', 'timestamp': ts}
+        else:
+            try:
+                data = simulator._load_local_data()
+                sessions = data.get('sessions', []) or []
+                sessions.append(payload)
+                data['sessions'] = sessions
+                with open(simulator.local_data_file, 'w') as f:
+                    json.dump(data, f, indent=2)
+                return {'status': 'success', 'timestamp': ts}
+            except Exception as le:
+                logger.warning(f"Local session write failed: {le}")
+                return {'status': 'error', 'error': str(le)}
+    except Exception as e:
+        logger.error(f"Error adding session message: {e}")
+        return {'status': 'error', 'error': str(e)}
+
 def seed_garden(
     garden_id: str,
     name: str,
