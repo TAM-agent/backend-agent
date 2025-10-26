@@ -102,6 +102,11 @@ class ChatRequest(BaseModel):
     message: str
     history: Optional[list] = None
     session_id: Optional[str] = None
+    # Optional TTS of assistant reply
+    include_audio: Optional[bool] = False
+    voice_id: Optional[str] = None
+    model_id: Optional[str] = None
+    output_format: Optional[str] = None
 
 
     
@@ -1216,7 +1221,7 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                 add_session_message(garden_id, "assistant", _msg, {"garden_name": garden_name}, session_id=session_id)
             except Exception:
                 pass
-            return {
+            result = {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
                 "session_id": session_id,
@@ -1227,6 +1232,25 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                 "priority": response_data.get("priority", "info"),
                 "timestamp": datetime.now().isoformat()
             }
+            # Optional TTS of assistant reply
+            try:
+                if bool(request.include_audio) and _msg:
+                    from irrigation_agent.service.tts_service import convert_text_to_speech
+                    audio_b64 = convert_text_to_speech(
+                        _msg,
+                        voice_id=request.voice_id or DEFAULT_VOICE_ID,
+                        model_id=request.model_id or DEFAULT_TTS_MODEL,
+                        output_format=request.output_format or DEFAULT_AUDIO_FORMAT,
+                    )
+                    if audio_b64:
+                        result.update({
+                            "audio_base64": audio_b64,
+                            "voice_id": request.voice_id or DEFAULT_VOICE_ID,
+                            "format": request.output_format or DEFAULT_AUDIO_FORMAT,
+                        })
+            except Exception as _tts_err:
+                logger.warning(f"TTS (chat) failed: {_tts_err}")
+            return result
         except json.JSONDecodeError:
             _fallback_msg = response_text.strip()
             try:
@@ -1234,7 +1258,7 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                 add_session_message(garden_id, "assistant", _fallback_msg, {"garden_name": garden_name}, session_id=session_id)
             except Exception:
                 pass
-            return {
+            result = {
                 "garden_id": garden_id,
                 "garden_name": garden_name,
                 "session_id": session_id,
@@ -1245,6 +1269,25 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                 "priority": "info",
                 "timestamp": datetime.now().isoformat()
             }
+            # Optional TTS of assistant reply
+            try:
+                if bool(request.include_audio) and _fallback_msg:
+                    from irrigation_agent.service.tts_service import convert_text_to_speech
+                    audio_b64 = convert_text_to_speech(
+                        _fallback_msg,
+                        voice_id=request.voice_id or DEFAULT_VOICE_ID,
+                        model_id=request.model_id or DEFAULT_TTS_MODEL,
+                        output_format=request.output_format or DEFAULT_AUDIO_FORMAT,
+                    )
+                    if audio_b64:
+                        result.update({
+                            "audio_base64": audio_b64,
+                            "voice_id": request.voice_id or DEFAULT_VOICE_ID,
+                            "format": request.output_format or DEFAULT_AUDIO_FORMAT,
+                        })
+            except Exception as _tts_err:
+                logger.warning(f"TTS (chat-fallback) failed: {_tts_err}")
+            return result
 
     except HTTPException:
         raise
