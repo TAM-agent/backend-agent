@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 from datetime import datetime
-from typing import Optional, Set
+from typing import Optional, Set, Dict
 
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -120,14 +120,25 @@ class TTSRequest(BaseModel):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: Set[WebSocket] = set()
+        self.device_connections: Dict[str, Set[WebSocket]] = {}
+        self.websocket_devices: Dict[WebSocket, str] = {}
 
-    async def connect(self, websocket: WebSocket):
+    async def connect(self, websocket: WebSocket, device_id: str):
         await websocket.accept()
         self.active_connections.add(websocket)
+        self.device_connections.setdefault(device_id, set()).add(websocket)
+        self.websocket_devices[websocket] = device_id
         logger.info(f"New WebSocket connection. Total: {len(self.active_connections)}")
 
     def disconnect(self, websocket: WebSocket):
         self.active_connections.discard(websocket)
+        did = self.websocket_devices.pop(websocket, None)
+        if did and did in self.device_connections:
+            conns = self.device_connections.get(did)
+            if conns is not None:
+                conns.discard(websocket)
+                if not conns:
+                    self.device_connections.pop(did, None)
         logger.info(f"WebSocket disconnected. Total: {len(self.active_connections)}")
 
     async def broadcast(self, message: dict):
@@ -151,6 +162,19 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"Error sending personal message: {e}")
             self.disconnect(websocket)
+
+    async def send_to_device(self, device_id: str, message: dict):
+        """Send a message to all sockets associated with a device_id."""
+        conns = self.device_connections.get(device_id, set())
+        disconnected = set()
+        for ws in list(conns):
+            try:
+                await ws.send_json(message)
+            except Exception as e:
+                logger.error(f"Error sending to device {device_id}: {e}")
+                disconnected.add(ws)
+        for ws in disconnected:
+            self.disconnect(ws)
 
 
 manager = ConnectionManager()
@@ -1362,8 +1386,8 @@ async def api_chat(request: ChatRequest):
     raise HTTPException(status_code=400, detail="El chat es por jardin. Usa POST /api/gardens/{garden_id}/chat")
 
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+@app.websocket("/ws/{device_id}")
+async def websocket_endpoint(websocket: WebSocket, device_id: str):
     """
     WebSocket endpoint for real-time notifications and agent communications.
 
@@ -1380,13 +1404,14 @@ async def websocket_endpoint(websocket: WebSocket):
         "timestamp": "ISO timestamp"
     }
     """
-    await manager.connect(websocket)
+    await manager.connect(websocket, device_id)
 
     try:
         # Send welcome message
         await manager.send_personal({
             "type": "connection",
             "message": "Conectado a GrowthAI - Sistema de Irrigacion Inteligente",
+            "device_id": device_id,
             "timestamp": datetime.now().isoformat()
         }, websocket)
 
