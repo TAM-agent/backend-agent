@@ -1309,6 +1309,27 @@ async def websocket_endpoint(websocket: WebSocket, device_id: str):
 
             message_type = data.get("type")
 
+            # Relay device-originated events as normalized notifications
+            relay_types = {"alert", "agent_decision", "system_update", "event"}
+            if message_type in relay_types:
+                payload = {
+                    "type": message_type,
+                    "device_id": device_id,
+                    "garden_id": data.get("garden_id"),
+                    "data": data.get("data", data),
+                    "timestamp": datetime.now().isoformat(),
+                }
+                await manager.broadcast(payload)
+                continue
+
+            if message_type == "ping":
+                await manager.send_personal({
+                    "type": "pong",
+                    "device_id": device_id,
+                    "timestamp": datetime.now().isoformat()
+                }, websocket)
+                continue
+
             if message_type == "chat":
                 # Garden-scoped chat: require garden_id and include plants info as context
                 user_message = data.get("message", "")
