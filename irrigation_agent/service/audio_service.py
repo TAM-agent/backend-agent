@@ -77,7 +77,8 @@ def tts_elevenlabs(
 def stt_elevenlabs(file_bytes: bytes, model: Optional[str] = None) -> Dict[str, Any]:
     """Transcribe speech to text via ElevenLabs STT HTTP API.
 
-    Note: Endpoint and parameters may change; treat as best-effort wrapper.
+    Tries the documented SDK-equivalent HTTP shapes and returns richer errors
+    so callers can see why requests fail (e.g., missing model_id).
     """
     api_key = _eleven_key()
     if not api_key:
@@ -87,33 +88,67 @@ def stt_elevenlabs(file_bytes: bytes, model: Optional[str] = None) -> Dict[str, 
             "timestamp": datetime.now().isoformat(),
         }
 
-    try:
-        # Generic STT endpoint (subject to vendor changes)
-        url = "https://api.elevenlabs.io/v1/speech-to-text"
-        headers = {"xi-api-key": api_key}
-        files = {
-            "file": ("audio.mp3", io.BytesIO(file_bytes), "audio/mpeg"),
-        }
-        data = {}
-        if model:
-            data["model_id"] = model
+    # Default to the same model used by the SDK wrapper if none provided
+    model_id = model or "eleven_multilingual_v2"
 
-        resp = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-        resp.raise_for_status()
-        data = resp.json()
-        # Expected to contain a transcript field
-        transcript = data.get("text") or data.get("transcript") or ""
-        return {
-            "status": "success",
-            "text": transcript,
-            "raw": data,
-            "timestamp": datetime.now().isoformat(),
-        }
-    except requests.RequestException as e:
-        logger.error(f"ElevenLabs STT error: {e}")
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat(),
-        }
+    # Build common request parts
+    headers = {
+        "xi-api-key": api_key,
+        "Accept": "application/json",
+    }
+    files = {
+        # Many vendors expect the field name "audio" rather than "file"
+        "audio": ("audio.mp3", io.BytesIO(file_bytes), "audio/mpeg"),
+    }
+    data = {"model_id": model_id}
 
+    # Try primary endpoint, then a fallback path used by some clients
+    endpoints = [
+        "https://api.elevenlabs.io/v1/speech-to-text",
+        "https://api.elevenlabs.io/v1/speech-to-text/convert",
+    ]
+
+    last_error: Optional[Dict[str, Any]] = None
+    for url in endpoints:
+        try:
+            resp = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+            if resp.status_code >= 400:
+                # Preserve vendor error for debugging
+                err_text = None
+                err_json = None
+                try:
+                    err_json = resp.json()
+                except Exception:
+                    err_text = resp.text
+                last_error = {
+                    "status": "error",
+                    "http_status": resp.status_code,
+                    "endpoint": url,
+                    "error": (err_json or err_text or "Unknown error"),
+                }
+                continue
+
+            data_json = resp.json()
+            transcript = data_json.get("text") or data_json.get("transcript") or ""
+            return {
+                "status": "success",
+                "text": transcript,
+                "raw": data_json,
+                "timestamp": datetime.now().isoformat(),
+            }
+        except requests.RequestException as e:
+            # Network/transport error; capture and try next endpoint
+            last_error = {
+                "status": "error",
+                "endpoint": url,
+                "error": str(e),
+            }
+            continue
+
+    # If we reach here, all attempts failed
+    logger.error(f"ElevenLabs STT error: {last_error}")
+    return {
+        "status": "error",
+        **(last_error or {"error": "Unknown STT error"}),
+        "timestamp": datetime.now().isoformat(),
+    }
