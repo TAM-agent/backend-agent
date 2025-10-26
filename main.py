@@ -104,9 +104,6 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     # Optional TTS of assistant reply
     include_audio: Optional[bool] = False
-    voice_id: Optional[str] = None
-    model_id: Optional[str] = None
-    output_format: Optional[str] = None
 
 
     
@@ -951,7 +948,6 @@ async def api_seed_garden(garden_id: str, req: SeedGardenRequest):
 async def api_audio_tts(req: TTSRequest):
     """Text-to-Speech using ElevenLabs. Returns base64 audio data."""
     try:
-        # Prefer SDK service from fabian branch if available
         try:
             from irrigation_agent.service.tts_service import convert_text_to_speech
             audio_b64 = convert_text_to_speech(
@@ -1238,16 +1234,12 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                     from irrigation_agent.service.tts_service import convert_text_to_speech
                     audio_b64 = convert_text_to_speech(
                         _msg,
-                        voice_id=request.voice_id or DEFAULT_VOICE_ID,
-                        model_id=request.model_id or DEFAULT_TTS_MODEL,
-                        output_format=request.output_format or DEFAULT_AUDIO_FORMAT,
+                        voice_id=DEFAULT_VOICE_ID,
+                        model_id=DEFAULT_TTS_MODEL,
+                        output_format=DEFAULT_AUDIO_FORMAT,
                     )
                     if audio_b64:
-                        result.update({
-                            "audio_base64": audio_b64,
-                            "voice_id": request.voice_id or DEFAULT_VOICE_ID,
-                            "format": request.output_format or DEFAULT_AUDIO_FORMAT,
-                        })
+                        result["audio_base64"] = audio_b64
             except Exception as _tts_err:
                 logger.warning(f"TTS (chat) failed: {_tts_err}")
             return result
@@ -1275,16 +1267,12 @@ async def api_garden_chat(garden_id: str, request: ChatRequest):
                     from irrigation_agent.service.tts_service import convert_text_to_speech
                     audio_b64 = convert_text_to_speech(
                         _fallback_msg,
-                        voice_id=request.voice_id or DEFAULT_VOICE_ID,
-                        model_id=request.model_id or DEFAULT_TTS_MODEL,
-                        output_format=request.output_format or DEFAULT_AUDIO_FORMAT,
+                        voice_id=DEFAULT_VOICE_ID,
+                        model_id=DEFAULT_TTS_MODEL,
+                        output_format=DEFAULT_AUDIO_FORMAT,
                     )
                     if audio_b64:
-                        result.update({
-                            "audio_base64": audio_b64,
-                            "voice_id": request.voice_id or DEFAULT_VOICE_ID,
-                            "format": request.output_format or DEFAULT_AUDIO_FORMAT,
-                        })
+                        result["audio_base64"] = audio_b64
             except Exception as _tts_err:
                 logger.warning(f"TTS (chat-fallback) failed: {_tts_err}")
             return result
