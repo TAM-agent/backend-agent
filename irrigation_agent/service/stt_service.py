@@ -5,14 +5,15 @@ from typing import Optional
 
 load_dotenv()
 
-_client = ElevenLabs(api_key=os.getenv("ELEVENLABS_API_KEY"))
+_api_key = os.getenv("ELEVENLABS_API_KEY")
+_client = ElevenLabs(api_key=_api_key) if _api_key else None
 
 
 def convert_audio_to_text(audio_bytes: bytes, model_id: str = "eleven_multilingual_v2") -> Optional[str]:
     """
     Takes audio bytes, sends them to the ElevenLabs STT API, and returns the transcribed text.
     """
-    if not _client.api_key:
+    if not _client or not _api_key:
         return None
     if not audio_bytes:
         return None
