@@ -6,12 +6,8 @@ import re
 from datetime import datetime
 from typing import Optional, Set
 
-<<<<<<< HEAD
-from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File
-=======
 from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Form
->>>>>>> main
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddlewares
 from pydantic import BaseModel
 
 from irrigation_agent.stt_service import convert_audio_to_text
@@ -753,11 +749,6 @@ async def api_get_irrigation_recommendation(garden_id: str, plant_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-<<<<<<< HEAD
-@app.post("/api/chat")
-async def api_chat(request: Optional[ChatRequest] = None, audio: UploadFile | None = File(default=None)):
-    """Chat with the intelligent irrigation agent. Accepts text (ChatRequest) or an audio file to transcribe."""
-=======
 # ============================================================================
 # AGRICULTURE DATA (USDA Quick Stats)
 # ============================================================================
@@ -839,57 +830,10 @@ async def api_garden_advisor(garden_id: str, req: AdvisorRequest):
 
     Returns a JSON-structured recommendation at garden level (no per-plant chat).
     """
->>>>>>> main
     if not TOOLS_AVAILABLE:
         raise HTTPException(status_code=503, detail="Agent tools not available")
 
     try:
-<<<<<<< HEAD
-    
-        prompt_text = None
-
-        if audio is not None:
-            audio_bytes = await audio.read()
-            transcript = convert_audio_to_text(audio_bytes)
-            if not transcript:
-                logger.error("STT transcription failed or returned empty result")
-                raise HTTPException(status_code=500, detail="Transcription failed")
-            if request and getattr(request, "message", None):
-                prompt_text = f"{request.message}\n\nTranscription: {transcript}"
-            else:
-                prompt_text = transcript
-        else:
-            if request and getattr(request, "message", None):
-                prompt_text = request.message
-            else:
-                raise HTTPException(status_code=400, detail="No message or audio provided")
-
-        from google import genai
-        client = genai.Client(vertexai=True)
-
-        response = client.models.generate_content(
-            model=config.worker_model,
-            contents=prompt_text
-        )
-
-        final_response = ""
-        if hasattr(response, 'text'):
-            final_response = response.text
-        elif hasattr(response, 'candidates') and response.candidates:
-            for candidate in response.candidates:
-                if hasattr(candidate, 'content') and candidate.content:
-                    if hasattr(candidate.content, 'parts'):
-                        for part in candidate.content.parts:
-                            if hasattr(part, 'text'):
-                                final_response += part.text
-
-        return {
-            "response": final_response.strip(),
-            "timestamp": datetime.now().isoformat(),
-            "status": "success",
-            "used_transcription": audio is not None
-        }
-=======
         from irrigation_agent.tools import get_garden_status, get_garden_weather
         from irrigation_agent.agriculture_service import get_crop_yield, get_area_planted
         from irrigation_agent.genai_utils import get_genai_client, extract_text, extract_json_object
@@ -980,7 +924,6 @@ Reglas:
                 },
                 "timestamp": datetime.now().isoformat()
             }
->>>>>>> main
     except HTTPException:
         raise
     except Exception as e:
