@@ -51,11 +51,46 @@ curl http://localhost:8080/health
 
 ---
 
-## Architecture (brief)
-- FastAPI REST + WebSocket for real‑time messages
-- Tools layer (modular): sensors, control, analysis, gardens, API integrations
-- Services: Firestore simulator, weather, audio, agriculture
-- Utils: LLM client (singleton) + response parsing
+## Architecture
+
+### System Architecture Diagram
+
+![GCP Architecture](docs/images/arch-gcp.svg)
+
+### Components Overview
+
+**API Layer** (FastAPI)
+- REST endpoints organized by domain (plants, gardens, agriculture, audio)
+- WebSocket server for real-time notifications
+- Background monitoring task (30-60s intervals)
+
+**Agent Layer** (Google Gemini ADK)
+- Multi-agent orchestration with 4 specialized sub-agents
+- Sensor monitor, nutrient analyzer, alert manager, optimization agent
+- Explainable AI decisions with reasoning
+
+**Tools Layer** (Modular)
+- Sensors: moisture, tank level, history
+- Control: irrigation triggers
+- Analysis: plant health assessment
+- Gardens: garden-scoped operations
+- API integrations: weather, USDA
+
+**Services Layer**
+- Firebase/Firestore simulator for data persistence
+- Weather APIs (Google Weather, OpenWeatherMap)
+- USDA Quick Stats for agriculture data
+- ElevenLabs for TTS/STT
+- Telegram for notifications
+- Image analysis for plant health
+
+**Infrastructure** (Google Cloud)
+- Cloud Run for serverless deployment
+- Vertex AI for Gemini models
+- Firestore for data storage
+- Secret Manager for API keys
+
+> 📚 For detailed architecture documentation, see [docs/deployment/ARCHITECTURE.md](docs/deployment/ARCHITECTURE.md)
 
 ---
 
@@ -226,39 +261,52 @@ Adds crop statistics (yield, area planted) for richer context.
 
 ---
 
-## Deployment (Cloud Run)
+## Deployment
 
-Example deploy with separate env vars (non‑secrets):
+### Quick Deploy
+
 ```bash
+# Option 1: Using Makefile (recommended)
+cd deployment
+make deploy
+
+# Option 2: Direct gcloud command
 gcloud run deploy intelligent-irrigation-agent \
   --source . \
   --region us-east1 \
   --project tam-adk \
   --allow-unauthenticated \
-  --service-account tam-adk@tam-adk.iam.gserviceaccount.com \
-  --memory 512Mi --cpu 1 --timeout 300 \
-  --set-env-vars GOOGLE_CLOUD_PROJECT=tam-adk \
-  --set-env-vars GOOGLE_CLOUD_LOCATION=us-east1 \
-  --set-env-vars GOOGLE_GENAI_USE_VERTEXAI=true \
-  --set-env-vars AI_MODEL=gemini-2.5-pro \
-  --set-env-vars USE_SIMULATION=true \
-  --set-env-vars USE_FIRESTORE=true
+  --memory 512Mi --cpu 1 --timeout 300
+
+# Option 3: Cloud Build (CI/CD)
+cd deployment
+make cloud-build
 ```
 
-Recommended (secrets via Secret Manager):
+### Useful Commands
+
 ```bash
---set-secrets USDA_QUICKSTATS_API_KEY=usda-quickstats:latest \
---set-secrets ELEVENLABS_API_KEY=elevenlabs:latest
+# View logs
+cd deployment && make logs
+
+# Health check
+cd deployment && make health
+
+# Service info
+cd deployment && make info
+
+# See all commands
+cd deployment && make help
 ```
 
-Logs & URL
-```bash
-gcloud run services describe intelligent-irrigation-agent \
-  --region us-east1 --project tam-adk \
-  --format='value(status.url)'
-gcloud run services logs read intelligent-irrigation-agent \
-  --region us-east1 --project tam-adk --limit 100
-```
+### Complete Documentation
+
+📚 **See [deployment/README.md](deployment/README.md)** for:
+- Complete deployment guide
+- Secrets configuration
+- Troubleshooting
+- Version rollback
+- Local Docker build
 
 ---
 
@@ -270,15 +318,34 @@ uvicorn main:app --reload --port 8080
 pytest -q
 ```
 
-Project structure (simplified)
+Project structure
 ```
-irrigation_agent/
-  service/        # external services (weather, audio, firestore, agriculture)
-  tools/          # sensors, control, notifications, analysis, gardens, api
-  utils/          # llm client + helpers
-  sub_agents/     # orchestrator + specialized sub-agents
-main.py           # FastAPI app
+backend-agent/
+├── main.py                    # FastAPI app (236 lines, refactored)
+├── api/                       # API layer (organized by domain)
+│   ├── models.py             # Pydantic request/response models
+│   ├── websocket.py          # WebSocket connection manager
+│   ├── routers/              # Endpoint routers
+│   │   ├── plants.py         # Legacy plant endpoints
+│   │   ├── gardens.py        # Modern garden endpoints
+│   │   ├── agriculture.py    # USDA Quick Stats endpoints
+│   │   └── audio.py          # TTS/STT endpoints
+│   └── services/             # Business logic services
+│       └── monitoring.py     # Background monitoring
+├── irrigation_agent/         # Core agent logic
+│   ├── tools/               # Function tools for agents
+│   ├── service/             # External service integrations
+│   ├── utils/               # Utilities (LLM client, helpers)
+│   ├── sub_agents/          # Specialized sub-agents
+│   └── config.py            # Configuration management
+├── prompts/                  # LLM system prompts
+├── docs/                     # Documentation
+│   ├── images/              # Architecture diagrams
+│   └── deployment/          # Deployment guides
+└── scripts/                  # Utility scripts
 ```
+
+> 📖 See [docs/REFACTORING.md](docs/REFACTORING.md) for details on the code refactoring
 
 ---
 
