@@ -1,10 +1,12 @@
-﻿# Intelligent Irrigation Agent
+﻿<h1 align="center">Intelligent Irrigation Agent</h1>
 
 <p align="center">
   <img src="docs/images/plantita_pixel_art.gif" alt="Plant Animation" width="200">
 </p>
 
+<p align="center">
 Multi‑agent irrigation backend using Google Gemini ADK. Adds proactive monitoring, explainable decisions and API endpoints over an IoT irrigation setup (sensors + pumps).
+</p>
 
 ---
 
