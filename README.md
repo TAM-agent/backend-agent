@@ -80,17 +80,18 @@ curl http://localhost:8080/health
 
 **Services Layer**
 - Firebase/Firestore simulator for data persistence
-- Weather APIs (Google Weather, OpenWeatherMap)
-- USDA Quick Stats for agriculture data
-- ElevenLabs for TTS/STT
-- Telegram for notifications
+- Weather APIs (Google Weather API, OpenWeatherMap API)
+- USDA Quick Stats API for agriculture data
+- ElevenLabs API for Text-to-Speech (TTS) and Speech-to-Text (STT)
+- Telegram Bot API for real-time notifications
 - Image analysis for plant health
 
 **Infrastructure** (Google Cloud)
 - Cloud Run for serverless deployment
-- Vertex AI for Gemini models
+- Vertex AI API for Gemini models (gemini-2.5-pro, gemini-2.5-flash)
 - Firestore for data storage
 - Secret Manager for API keys
+- Google Weather API for forecast data
 
 ---
 
