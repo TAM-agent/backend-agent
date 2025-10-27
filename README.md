@@ -55,7 +55,9 @@ curl http://localhost:8080/health
 
 ### System Architecture Diagram
 
-![GCP Architecture](docs/images/arch-gcp.svg)
+<p align="center">
+  <img src="docs/images/arch-gcp.svg" alt="GCP Architecture" width="800">
+</p>
 
 ### Components Overview
 
@@ -90,8 +92,6 @@ curl http://localhost:8080/health
 - Firestore for data storage
 - Secret Manager for API keys
 
-> 📚 For detailed architecture documentation, see [docs/deployment/ARCHITECTURE.md](docs/deployment/ARCHITECTURE.md)
-
 ---
 
 ## Installation
@@ -109,7 +109,7 @@ pip install -r requirements.txt
 Environment variables (examples)
 ```env
 # Google Cloud
-GOOGLE_CLOUD_PROJECT=tam-adk
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 GOOGLE_CLOUD_LOCATION=us-east1
 GOOGLE_GENAI_USE_VERTEXAI=True
 
@@ -127,8 +127,8 @@ USDA_QUICKSTATS_API_KEY=...
 ELEVENLABS_API_KEY=...
 
 # Telegram Notifications (optional)
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz1234567890
-TELEGRAM_CHAT_ID=123456789
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
+TELEGRAM_CHAT_ID=your_telegram_chat_id
 
 # CORS (optional)
 ALLOWED_ORIGINS=http://localhost:3000
@@ -274,7 +274,7 @@ make deploy
 gcloud run deploy intelligent-irrigation-agent \
   --source . \
   --region us-east1 \
-  --project tam-adk \
+  --project YOUR_PROJECT_ID \
   --allow-unauthenticated \
   --memory 512Mi --cpu 1 --timeout 300
 
@@ -311,10 +311,15 @@ cd deployment && make help
 ---
 
 ## Development
+
 ```bash
-make install-dev   # or: pip install -r requirements.txt
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally with hot reload
 uvicorn main:app --reload --port 8080
-# Tests (if present)
+
+# Run tests (if present)
 pytest -q
 ```
 
@@ -339,13 +344,15 @@ backend-agent/
 │   ├── sub_agents/          # Specialized sub-agents
 │   └── config.py            # Configuration management
 ├── prompts/                  # LLM system prompts
-├── docs/                     # Documentation
-│   ├── images/              # Architecture diagrams
-│   └── deployment/          # Deployment guides
+├── docs/
+│   └── images/              # Architecture diagrams (SVG)
+├── deployment/              # Deployment files and guides
+│   ├── Dockerfile
+│   ├── cloudbuild.yaml
+│   ├── Makefile
+│   └── README.md
 └── scripts/                  # Utility scripts
 ```
-
-> 📖 See [docs/REFACTORING.md](docs/REFACTORING.md) for details on the code refactoring
 
 ---
 

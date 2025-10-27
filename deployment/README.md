@@ -24,7 +24,7 @@ make deploy
 gcloud run deploy intelligent-irrigation-agent \
   --source . \
   --region us-east1 \
-  --project tam-adk \
+  --project YOUR_PROJECT_ID \
   --allow-unauthenticated \
   --memory 512Mi \
   --cpu 1 \
@@ -126,7 +126,7 @@ Environment variables are read from `.env` in project root:
 
 ```env
 # Required
-GOOGLE_CLOUD_PROJECT=tam-adk
+GOOGLE_CLOUD_PROJECT=your-gcp-project-id
 GOOGLE_CLOUD_LOCATION=us-east1
 GOOGLE_GENAI_USE_VERTEXAI=True
 AI_MODEL=gemini-2.5-pro
@@ -143,15 +143,15 @@ TELEGRAM_BOT_TOKEN=...
 
 ### Error: "Service account not found"
 ```bash
-gcloud iam service-accounts create tam-adk \
-  --display-name="TAM ADK Service Account"
+gcloud iam service-accounts create SERVICE_ACCOUNT_NAME \
+  --display-name="Service Account Display Name"
 ```
 
 ### Error: "Permission denied"
 ```bash
 # Grant necessary permissions
-gcloud projects add-iam-policy-binding tam-adk \
-  --member="serviceAccount:tam-adk@tam-adk.iam.gserviceaccount.com" \
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:SERVICE_ACCOUNT_NAME@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
   --role="roles/aiplatform.user"
 ```
 
@@ -178,10 +178,9 @@ gcloud run services update-traffic intelligent-irrigation-agent \
 
 ## 📚 Additional Documentation
 
-- [Cloud Run Docs](https://cloud.google.com/run/docs)
-- [Cloud Build Docs](https://cloud.google.com/build/docs)
+- [Cloud Run Documentation](https://cloud.google.com/run/docs)
+- [Cloud Build Documentation](https://cloud.google.com/build/docs)
 - [Main README](../README.md) - Complete project documentation
-- [CLAUDE.md](../CLAUDE.md) - Development guide
 
 ---
 
